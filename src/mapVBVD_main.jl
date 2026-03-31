@@ -1,15 +1,9 @@
-"""
-    get_bit(number, pos)
+# ─── Bit operations ──────────────────────────────────────────────────
 
-Get bit at position `pos` (0-indexed) from `number`.
-"""
+"""Get bit at position `pos` (0-indexed) from `number`."""
 get_bit(number, pos) = (number >> pos) & 1
 
-"""
-    set_bit(v, index, x)
-
-Set the bit at position `index` (0-indexed) to `x` (true/false).
-"""
+"""Set the bit at position `index` (0-indexed) to `x` (true/false)."""
 function set_bit(v, index, x::Bool)
     mask = one(typeof(v)) << index
     v &= ~mask
@@ -30,6 +24,12 @@ function set_bit(vs::AbstractVector, index, x::Bool)
     return out
 end
 
+# ─── Custom exception ────────────────────────────────────────────────
+
+struct EOFError <: Exception end
+
+# ─── MDH loop reader ─────────────────────────────────────────────────
+
 """
     loop_mdh_read(fid, version, Nscans, scan, measOffset, measLength; print_prog=true)
 
@@ -39,17 +39,10 @@ Returns (mdh_blob, filePos, isEOF).
 function loop_mdh_read(fid::IO, version::String, Nscans::Int, scan::Int,
                        measOffset::UInt64, measLength::UInt64;
                        print_prog::Bool=true)
-    if version == "vb"
-        isVD = false
-        byteMDH = 128
-    elseif version == "vd"
-        isVD = true
-        byteMDH = 184
-        szScanHeader = 192
-        szChannelHeader = 32
-    else
-        isVD = false
-        byteMDH = 128
+    isVD = version == "vd"
+    byteMDH = isVD ? MDH_SIZE_VD : MDH_SIZE_VB
+
+    if !(version == "vb" || version == "vd")
         @warn "Software version \"$version\" is not supported."
     end
 
@@ -61,33 +54,25 @@ function loop_mdh_read(fid::IO, version::String, Nscans::Int, scan::Int,
 
     mdh_blob = zeros(UInt8, byteMDH, 0)
     szBlob = size(mdh_blob, 2)
-    filePos = Float64[]
+    filePos = Int64[]
 
     seek(fid, cPos)
-
-    bit_0 = UInt8(1)
-    bit_5 = UInt8(32)
-    mdhStart = -byteMDH
 
     u8_000 = zeros(UInt8, 3)
 
     # Offset for evalInfoMask (1-indexed)
-    evIdx = (21 + 20 * isVD)  # 1-based
-    dmaIdx = collect(29:32) .+ 20 * isVD  # 1-based
-    if isVD
-        dmaOff = szScanHeader
-        dmaSkip = szChannelHeader
-    else
-        dmaOff = 0
-        dmaSkip = byteMDH
-    end
+    evIdx = isVD ? EVAL_INFO_OFFSET_VD : EVAL_INFO_OFFSET_VB
+    dmaIdx = isVD ? DMA_IDX_VD : DMA_IDX_VB
+    dmaOff = isVD ? VD_SCAN_HEADER_SIZE : 0
+    dmaSkip = isVD ? VD_CHANNEL_HEADER_SIZE : byteMDH
 
     if print_prog
         p = Progress(Int(measLength), desc=@sprintf("Scan %d/%d, read all mdhs ", scan + 1, Nscans),
                      showspeed=true, enabled=true)
-        last_progress = 0
+        p_finished = false
     end
 
+    mdhStart = -byteMDH
     data_u8 = Vector{UInt8}(undef, -mdhStart)
 
     while true
@@ -108,12 +93,12 @@ function loop_mdh_read(fid::IO, version::String, Nscans::Int, scan::Int,
 
         bitMask = data_u8[evIdx]
 
-        if (data_u8[1:3] == u8_000) || (bitMask & bit_0 != 0)
+        if (data_u8[1:3] == u8_000) || (bitMask & BYTE_BIT_0 != 0)
             data_u8[4] = UInt8(get_bit(data_u8[4], 0))
             tmp = reinterpret(UInt32, data_u8[1:4])[1]
             ulDMALength = Int(tmp)
 
-            if ulDMALength == 0 || (bitMask & bit_0 != 0)
+            if ulDMALength == 0 || (bitMask & BYTE_BIT_0 != 0)
                 cPos += ulDMALength
                 if cPos % 512 != 0
                     cPos += 512 - cPos % 512
@@ -122,7 +107,7 @@ function loop_mdh_read(fid::IO, version::String, Nscans::Int, scan::Int,
             end
         end
 
-        if bitMask & bit_5 != 0  # MDH_SYNCDATA
+        if bitMask & BYTE_BIT_5 != 0  # MDH_SYNCDATA
             data_u8[4] = UInt8(get_bit(data_u8[4], 0))
             tmp = reinterpret(UInt32, data_u8[1:4])[1]
             ulDMALength = Int(tmp)
@@ -139,23 +124,22 @@ function loop_mdh_read(fid::IO, version::String, Nscans::Int, scan::Int,
         # Grow arrays in batches
         if n_acq > szBlob
             mdh_blob = hcat(mdh_blob, zeros(UInt8, byteMDH, allocSize))
-            append!(filePos, zeros(Float64, allocSize))
+            append!(filePos, zeros(Int64, allocSize))
             szBlob = size(mdh_blob, 2)
         end
 
         mdh_blob[:, n_acq] = data_u8
         if n_acq > length(filePos)
-            append!(filePos, zeros(Float64, allocSize))
+            append!(filePos, zeros(Int64, allocSize))
         end
-        filePos[n_acq] = Float64(cPos)
+        filePos[n_acq] = Int64(cPos)
 
-        if print_prog
-            curr_progress = cPos
-            progress = curr_progress - last_progress
-            if progress > 0
-                ProgressMeter.update!(p, Int(min(curr_progress, measLength)))
+        if print_prog && !p_finished
+            curr_val = Int(min(cPos, measLength))
+            ProgressMeter.update!(p, curr_val)
+            if curr_val >= Int(measLength)
+                p_finished = true
             end
-            last_progress = curr_progress
         end
 
         cPos += Int(ulDMALength)
@@ -167,12 +151,12 @@ function loop_mdh_read(fid::IO, version::String, Nscans::Int, scan::Int,
 
     if n_acq < length(filePos)
         if n_acq + 1 <= length(filePos)
-            filePos[n_acq + 1] = Float64(cPos)
+            filePos[n_acq + 1] = Int64(cPos)
         else
-            push!(filePos, Float64(cPos))
+            push!(filePos, Int64(cPos))
         end
     else
-        push!(filePos, Float64(cPos))
+        push!(filePos, Int64(cPos))
     end
 
     # Discard overallocation
@@ -186,20 +170,18 @@ function loop_mdh_read(fid::IO, version::String, Nscans::Int, scan::Int,
     return mdh_blob, filePos, isEOF
 end
 
-struct EOFError <: Exception end
+# ─── MDH evaluation ──────────────────────────────────────────────────
 
 """
-    evalMDH(mdh_blob, version)
+    evalMDH(mdh_blob, version) -> (MDH, MDHMask)
 
 Parse MDH binary blob into structured MDH and mask objects.
 """
 function evalMDH(mdh_blob::Matrix{UInt8}, version::String)
-    if version == "vd"
-        isVD = true
+    isVD = version == "vd"
+    if isVD
         # Remove 20 unnecessary bytes (rows 21:40 in 1-based indexing)
-        mdh_blob = vcat(mdh_blob[1:20, :], mdh_blob[41:end, :])
-    else
-        isVD = false
+        mdh_blob = vcat(mdh_blob[1:20, :], mdh_blob[21+VD_EXTRA_BYTES:end, :])
     end
 
     Nmeas = size(mdh_blob, 2)
@@ -209,38 +191,33 @@ function evalMDH(mdh_blob::Matrix{UInt8}, version::String)
     ulPCI_rx = set_bit(Int16.(ulPCI_rx), 8, false)
     mdh_blob[4, :] = UInt8.(get_bit(mdh_blob[4, :], 1))
 
-    # Reinterpret as uint32 (first 76 bytes)
-    data_uint32 = Matrix{UInt32}(undef, Nmeas, 19)
+    # Reinterpret as uint32
+    n_u32 = length(UINT32_RANGE) ÷ sizeof(UInt32)
+    data_uint32 = Matrix{UInt32}(undef, Nmeas, n_u32)
     for col in 1:Nmeas
-        data_uint32[col, :] = reinterpret(UInt32, mdh_blob[1:76, col])
+        data_uint32[col, :] = reinterpret(UInt32, mdh_blob[UINT32_RANGE, col])
     end
 
-    # Reinterpret as uint16 (bytes 29 onwards)
-    nbytes_u16 = size(mdh_blob, 1) - 28
-    nwords_u16 = div(nbytes_u16, 2)
+    # Reinterpret as uint16
+    nbytes_u16 = size(mdh_blob, 1) - (UINT16_OFFSET - 1)
+    nwords_u16 = nbytes_u16 ÷ 2
     data_uint16 = Matrix{UInt16}(undef, Nmeas, nwords_u16)
     for col in 1:Nmeas
-        data_uint16[col, :] = reinterpret(UInt16, mdh_blob[29:28+nwords_u16*2, col])
+        data_uint16[col, :] = reinterpret(UInt16, mdh_blob[UINT16_OFFSET:UINT16_OFFSET-1+nwords_u16*2, col])
     end
 
-    # Reinterpret as float32 (bytes 69 onwards)
-    nbytes_f32 = size(mdh_blob, 1) - 68
-    nwords_f32 = div(nbytes_f32, 4)
+    # Reinterpret as float32
+    nbytes_f32 = size(mdh_blob, 1) - (FLOAT32_OFFSET - 1)
+    nwords_f32 = nbytes_f32 ÷ 4
     data_single = Matrix{Float32}(undef, Nmeas, nwords_f32)
     for col in 1:Nmeas
-        data_single[col, :] = reinterpret(Float32, mdh_blob[69:68+nwords_f32*4, col])
+        data_single[col, :] = reinterpret(Float32, mdh_blob[FLOAT32_OFFSET:FLOAT32_OFFSET-1+nwords_f32*4, col])
     end
 
-    # Slice positions and ice parameters depend on VD vs VB
-    if isVD
-        SlicePos = data_single[:, 4:10]
-        aushIceProgramPara = data_uint16[:, 41:64]
-        aushFreePara = data_uint16[:, 65:68]
-    else
-        SlicePos = data_single[:, 8:14]
-        aushIceProgramPara = data_uint16[:, 27:30]
-        aushFreePara = data_uint16[:, 31:34]
-    end
+    # Version-dependent fields
+    SlicePos = isVD ? data_single[:, F32_SLICE_POS_VD] : data_single[:, F32_SLICE_POS_VB]
+    aushIceProgramPara = isVD ? data_uint16[:, U16_ICE_PARAM_VD] : data_uint16[:, U16_ICE_PARAM_VB]
+    aushFreePara = isVD ? data_uint16[:, U16_FREE_PARAM_VD] : data_uint16[:, U16_FREE_PARAM_VB]
 
     mdh = MDH(
         ulPackBit,
@@ -248,41 +225,41 @@ function evalMDH(mdh_blob::Matrix{UInt8}, version::String)
         SlicePos,
         aushIceProgramPara,
         aushFreePara,
-        data_uint32[:, 2],    # lMeasUID
-        data_uint32[:, 3],    # ulScanCounter
-        data_uint32[:, 4],    # ulTimeStamp
-        data_uint32[:, 5],    # ulPMUTimeStamp
-        data_uint32[:, 6:7],  # aulEvalInfoMask
-        data_uint16[:, 1],    # ushSamplesInScan
-        data_uint16[:, 2],    # ushUsedChannels
-        data_uint16[:, 3:16], # sLC
-        data_uint16[:, 17:18],# sCutOff
-        data_uint16[:, 19],   # ushKSpaceCentreColumn
-        data_uint16[:, 20],   # ushCoilSelect
-        data_single[:, 1],    # fReadOutOffcentre
-        data_uint32[:, 19],   # ulTimeSinceLastRF
-        data_uint16[:, 25],   # ushKSpaceCentreLineNo
-        data_uint16[:, 26]    # ushKSpaceCentrePartitionNo
+        data_uint32[:, U32_MEAS_UID],
+        data_uint32[:, U32_SCAN_COUNTER],
+        data_uint32[:, U32_TIMESTAMP],
+        data_uint32[:, U32_PMU_TIMESTAMP],
+        data_uint32[:, U32_EVAL_INFO_MASK],
+        data_uint16[:, U16_SAMPLES_IN_SCAN],
+        data_uint16[:, U16_USED_CHANNELS],
+        data_uint16[:, U16_SLC],
+        data_uint16[:, U16_CUT_OFF],
+        data_uint16[:, U16_KSPACE_CENTRE_COL],
+        data_uint16[:, U16_COIL_SELECT],
+        data_single[:, F32_READOUT_OFFCENTRE],
+        data_uint32[:, U32_TIME_SINCE_RF],
+        data_uint16[:, U16_KSPACE_CENTRE_LINE],
+        data_uint16[:, U16_KSPACE_CENTRE_PART],
     )
 
     evalInfoMask1 = mdh.aulEvalInfoMask[:, 1]
 
     mask = MDHMask(
-        min.(evalInfoMask1 .& UInt32(2^0),  UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^1),  UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^2),  UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^5),  UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^10), UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^14), UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^15), UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^17), UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^21), UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^22), UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^23), UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^24), UInt32(1)),
-        min.(evalInfoMask1 .& UInt32(2^25), UInt32(1)),
-        min.(mdh.aulEvalInfoMask[:, 2] .& UInt32(2^(53-32)), UInt32(1)),
-        ones(UInt32, Nmeas)
+        min.(evalInfoMask1 .& UInt32(1 << BIT_ACQEND),            UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_RTFEEDBACK),        UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_HPFEEDBACK),        UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_SYNCDATA),           UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_RAWDATACORRECTION),  UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_REFPHASESTABSCAN),   UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_PHASESTABSCAN),      UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_SIGNREV),            UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_PHASCOR),            UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_PATREFSCAN),         UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_PATREFANDIMASCAN),   UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_REFLECT),            UInt32(1)),
+        min.(evalInfoMask1 .& UInt32(1 << BIT_NOISEADJSCAN),       UInt32(1)),
+        min.(mdh.aulEvalInfoMask[:, 2] .& UInt32(1 << (BIT_VOP - 32)), UInt32(1)),
+        ones(UInt32, Nmeas),
     )
 
     noImaScan = (mask.MDH_ACQEND .| mask.MDH_RTFEEDBACK .| mask.MDH_HPFEEDBACK
@@ -295,70 +272,66 @@ function evalMDH(mdh_blob::Matrix{UInt8}, version::String)
     return mdh, mask
 end
 
-
-"""
-    TwixObj
-
-Result object from mapVBVD. Contains header and scan data objects
-accessible via attribute-style access.
-"""
-mutable struct TwixObj
-    _data::Dict{String,Any}
-end
-
-TwixObj() = TwixObj(Dict{String,Any}())
-
-Base.getindex(t::TwixObj, key::String) = t._data[key]
-Base.setindex!(t::TwixObj, value, key::String) = (t._data[key] = value)
-Base.haskey(t::TwixObj, key::String) = haskey(t._data, key)
-Base.keys(t::TwixObj) = keys(t._data)
-Base.delete!(t::TwixObj, key::String) = delete!(t._data, key)
-Base.pop!(t::TwixObj, key::String, default=nothing) = pop!(t._data, key, default)
-
-function Base.getproperty(t::TwixObj, name::Symbol)
-    if name === :_data
-        return getfield(t, :_data)
-    end
-    key = String(name)
-    if haskey(t._data, key)
-        return t._data[key]
-    else
-        error("TwixObj has no field '$key'")
-    end
-end
-
-function Base.setproperty!(t::TwixObj, name::Symbol, val)
-    if name === :_data
-        return setfield!(t, :_data, val)
-    end
-    t._data[String(name)] = val
-end
-
-function Base.show(io::IO, t::TwixObj)
-    ks = collect(keys(t._data))
-    mdh_keys = filter(k -> k != "hdr", ks)
-    println(io, "TwixObj with keys: ", join(ks, ", "))
-    if !isempty(mdh_keys)
-        println(io, "MDH flags: ", join(mdh_keys, ", "))
-    end
-end
+# ─── TwixObj API functions ────────────────────────────────────────────
 
 """
     MDH_flags(t::TwixObj)
 
-Return list of populated MDH flag names.
+Return list of populated scan type names (excluding "hdr").
 """
 function MDH_flags(t::TwixObj)
-    return filter(k -> k != "hdr", collect(keys(t._data)))
+    return sort(filter(k -> k != "hdr", collect(keys(t._data))))
 end
 
 """
     search_header_for_keys(t::TwixObj, search_terms; kwargs...)
 
-Search header keys for matching terms.
+Search header for matching paths. Returns results in legacy format
+(Dict of section => Vector of tuple-keys) for backward compatibility.
+
+For the new API, use `search(t.hdr, terms...)` directly.
 """
-function search_header_for_keys(t::TwixObj, search_terms; kwargs...)
-    return search_for_keys(t._data["hdr"], search_terms; kwargs...)
+function search_header_for_keys(t::TwixObj, search_terms; top_lvl=nothing, print_flag::Bool=true, regex::Bool=true, kwargs...)
+    hdr = t._data["hdr"]
+
+    # If top_lvl is specified, search only within that section
+    if top_lvl !== nothing
+        sections = top_lvl isa AbstractString ? [top_lvl] : collect(top_lvl)
+    else
+        sections = collect(keys(hdr.data))
+    end
+
+    # Build results in the legacy format:
+    # Dict{String, Vector} where values are vectors of tuple-path keys
+    out = Dict{String,Vector}()
+    for section in sections
+        if !haskey(hdr.data, section)
+            out[section] = []
+            continue
+        end
+        sub = hdr.data[section]
+        if !(sub isa NestedDict)
+            out[section] = []
+            continue
+        end
+
+        # Search within this section
+        terms = search_terms isa Tuple ? collect(search_terms) : [search_terms]
+        results = search(sub, terms...; regex=regex)
+        # Convert dotted paths to tuples for backward compatibility
+        matching_keys = [Tuple(split(r.first, ".")) for r in results]
+
+        if print_flag
+            println("$section:")
+            for (r, mk) in zip(results, matching_keys)
+                println("\t$mk: $(r.second)")
+            end
+        end
+
+        out[section] = matching_keys
+    end
+
+    return out
 end
 
 """
@@ -367,26 +340,29 @@ end
 Search for header values matching given keys.
 """
 function search_header_for_val(t::TwixObj, top_lvl, search_keys; kwargs...)
-    keys_found = search_for_keys(t._data["hdr"], search_keys;
-                                  print_flag=false, top_lvl=top_lvl, kwargs...)
+    keys_found = search_header_for_keys(t, search_keys;
+                                         print_flag=false, top_lvl=top_lvl, kwargs...)
     out_vals = []
-    for (key, skeys) in keys_found
+    hdr = t._data["hdr"]
+    for (section, skeys) in keys_found
         for skey in skeys
-            push!(out_vals, t._data["hdr"][key][skey])
+            # skey is a tuple of strings; join to dotted path for NestedDict access
+            path = join(skey, ".")
+            push!(out_vals, hdr.data[section][path])
         end
     end
     return out_vals
 end
 
+# ─── LFS pointer detection ───────────────────────────────────────────
 
 """
     _check_lfs_pointer(filename)
 
 Check if a file is a Git LFS pointer instead of actual binary data.
-Throws an informative error if so.
 """
 function _check_lfs_pointer(filename::String)
-    filesize(filename) < 1024 || return  # LFS pointers are tiny
+    filesize(filename) < 1024 || return
     open(filename, "r") do f
         header = Vector{UInt8}(undef, min(filesize(filename), 50))
         readbytes!(f, header)
@@ -401,6 +377,8 @@ function _check_lfs_pointer(filename::String)
     end
 end
 
+# ─── Main entry point ────────────────────────────────────────────────
+
 """
     mapVBVD(filename; quiet=false, kwargs...)
 
@@ -411,14 +389,13 @@ or a `Vector{TwixObj}` for multi-raid (VD+) files.
 - `quiet::Bool=false`: Suppress progress output
 - `bReadHeader::Bool=true`: Whether to read the header
 - `bReadMDH::Bool=true`: Whether to read MDH data
-- Other kwargs are forwarded to `TwixMapObj` constructors
+- Other kwargs are forwarded to `ScanData` constructors
 """
 function mapVBVD(filename::String; quiet::Bool=false, kwargs...)
     if !quiet
         println("MapVBVD.jl")
     end
 
-    # Check for Git LFS pointer files
     _check_lfs_pointer(filename)
 
     bReadHeader = get(kwargs, :bReadHeader, true)
@@ -478,29 +455,19 @@ function mapVBVD(filename::String; quiet::Bool=false, kwargs...)
         end
 
         if bReadMDH
-            # Forward kwargs to TwixMapObj, filtering out our own kwargs
-            tmo_kwargs = Dict{Symbol,Any}()
+            # Forward kwargs to ScanData, filtering out our own kwargs
+            sd_kwargs = Dict{Symbol,Any}()
             for (k, v) in kwargs
                 if k ∉ (:bReadHeader, :bReadMDH, :quiet)
-                    tmo_kwargs[k] = v
+                    sd_kwargs[k] = v
                 end
             end
 
-            mytmo(dtype) = TwixMapObj(dtype, filename, version, rstraj; tmo_kwargs...)
+            make_scan(dtype) = ScanData(dtype, filename, version, rstraj; sd_kwargs...)
 
-            currTwixObj["image"] = mytmo("image")
-            currTwixObj["noise"] = mytmo("noise")
-            currTwixObj["phasecor"] = mytmo("phasecor")
-            currTwixObj["phasestab"] = mytmo("phasestab")
-            currTwixObj["phasestab_ref0"] = mytmo("phasestab_ref0")
-            currTwixObj["phasestab_ref1"] = mytmo("phasestab_ref1")
-            currTwixObj["refscan"] = mytmo("refscan")
-            currTwixObj["refscanPC"] = mytmo("refscanPC")
-            currTwixObj["refscan_phasestab"] = mytmo("refscan_phasestab")
-            currTwixObj["refscan_phasestab_ref0"] = mytmo("refscan_phasestab_ref0")
-            currTwixObj["refscan_phasestab_ref1"] = mytmo("refscan_phasestab_ref1")
-            currTwixObj["rtfeedback"] = mytmo("rtfeedback")
-            currTwixObj["vop"] = mytmo("vop")
+            for stype in SCAN_TYPES
+                currTwixObj[stype] = make_scan(stype)
+            end
 
             # Jump to first MDH
             cPos += hdr_len
@@ -513,133 +480,17 @@ function mapVBVD(filename::String; quiet::Bool=false, kwargs...)
             mdh, mask = evalMDH(mdh_blob, version)
 
             # --- Assign MDHs to respective scan types ---
-
-            # MDH_IMASCAN
-            isCurrScan = Bool.(mask.MDH_IMASCAN)
-            if any(isCurrScan)
-                readMDH!(currTwixObj["image"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "image")
-            end
-
-            # MDH_NOISEADJSCAN
-            isCurrScan = Bool.(mask.MDH_NOISEADJSCAN)
-            if any(isCurrScan)
-                readMDH!(currTwixObj["noise"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "noise")
-            end
-
-            # MDH_PATREFSCAN (refscan)
-            isCurrScan = Bool.((mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN)
-                .& .~(mask.MDH_PHASCOR
-                    .| mask.MDH_PHASESTABSCAN
-                    .| mask.MDH_REFPHASESTABSCAN
-                    .| mask.MDH_RTFEEDBACK
-                    .| mask.MDH_HPFEEDBACK))
-            if any(isCurrScan)
-                readMDH!(currTwixObj["refscan"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "refscan")
-            end
-
-            # MDH_RTFEEDBACK
-            isCurrScan = Bool.((mask.MDH_RTFEEDBACK .| mask.MDH_HPFEEDBACK) .& .~mask.MDH_VOP)
-            if any(isCurrScan)
-                readMDH!(currTwixObj["rtfeedback"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "rtfeedback")
-            end
-
-            # VOP
-            isCurrScan = Bool.(mask.MDH_RTFEEDBACK .& mask.MDH_VOP)
-            if any(isCurrScan)
-                readMDH!(currTwixObj["vop"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "vop")
-            end
-
-            # MDH_PHASCOR
-            isCurrScan = Bool.(mask.MDH_PHASCOR .& (.~mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN))
-            if any(isCurrScan)
-                readMDH!(currTwixObj["phasecor"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "phasecor")
-            end
-
-            # refscanPC
-            isCurrScan = Bool.(mask.MDH_PHASCOR .& (mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN))
-            if any(isCurrScan)
-                readMDH!(currTwixObj["refscanPC"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "refscanPC")
-            end
-
-            # phasestab
-            isCurrScan = Bool.((mask.MDH_PHASESTABSCAN .& .~mask.MDH_REFPHASESTABSCAN)
-                .& (.~mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN))
-            if any(isCurrScan)
-                readMDH!(currTwixObj["phasestab"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "phasestab")
-            end
-
-            # refscan_phasestab
-            isCurrScan = Bool.((mask.MDH_PHASESTABSCAN .& .~mask.MDH_REFPHASESTABSCAN)
-                .& (mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN))
-            if any(isCurrScan)
-                readMDH!(currTwixObj["refscan_phasestab"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "refscan_phasestab")
-            end
-
-            # phasestab_ref0
-            isCurrScan = Bool.((mask.MDH_REFPHASESTABSCAN .& .~mask.MDH_PHASESTABSCAN)
-                .& (.~mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN))
-            if any(isCurrScan)
-                readMDH!(currTwixObj["phasestab_ref0"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "phasestab_ref0")
-            end
-
-            # refscan_phasestab_ref0
-            isCurrScan = Bool.((mask.MDH_REFPHASESTABSCAN .& .~mask.MDH_PHASESTABSCAN)
-                .& (mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN))
-            if any(isCurrScan)
-                readMDH!(currTwixObj["refscan_phasestab_ref0"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "refscan_phasestab_ref0")
-            end
-
-            # phasestab_ref1
-            isCurrScan = Bool.((mask.MDH_REFPHASESTABSCAN .& mask.MDH_PHASESTABSCAN)
-                .& (.~mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN))
-            if any(isCurrScan)
-                readMDH!(currTwixObj["phasestab_ref1"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "phasestab_ref1")
-            end
-
-            # refscan_phasestab_ref1
-            isCurrScan = Bool.((mask.MDH_REFPHASESTABSCAN .& mask.MDH_PHASESTABSCAN)
-                .& (mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN))
-            if any(isCurrScan)
-                readMDH!(currTwixObj["refscan_phasestab_ref1"], mdh, filePos, isCurrScan)
-            else
-                delete!(currTwixObj, "refscan_phasestab_ref1")
-            end
+            _assign_scans!(currTwixObj, mdh, mask, filePos)
 
             if isEOF
                 for key in collect(keys(currTwixObj._data))
-                    if key != "hdr"
-                        tryAndFixLastMdh!(currTwixObj[key])
-                    end
+                    key == "hdr" && continue
+                    tryAndFixLastMdh!(currTwixObj[key])
                 end
             else
                 for key in collect(keys(currTwixObj._data))
-                    if key != "hdr"
-                        clean!(currTwixObj[key])
-                    end
+                    key == "hdr" && continue
+                    compute_dims!(currTwixObj[key])
                 end
             end
         end
@@ -649,8 +500,67 @@ function mapVBVD(filename::String; quiet::Bool=false, kwargs...)
 
     close(fid)
 
-    if length(twix_obj) == 1
-        return twix_obj[1]
+    return length(twix_obj) == 1 ? twix_obj[1] : twix_obj
+end
+
+"""
+    _assign_scans!(obj, mdh, mask, filePos)
+
+Assign MDH data to the appropriate scan type objects based on mask flags.
+"""
+function _assign_scans!(obj::TwixObj, mdh::MDH, mask::MDHMask, filePos::Vector{Int64})
+    function _try_assign!(scan_key, selector::AbstractVector{Bool})
+        if any(selector)
+            readMDH!(obj[scan_key], mdh, filePos, selector)
+        else
+            delete!(obj, scan_key)
+        end
     end
-    return twix_obj
+
+    # image
+    _try_assign!("image", Bool.(mask.MDH_IMASCAN))
+
+    # noise
+    _try_assign!("noise", Bool.(mask.MDH_NOISEADJSCAN))
+
+    # refscan
+    _try_assign!("refscan", Bool.((mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN)
+        .& .~(mask.MDH_PHASCOR .| mask.MDH_PHASESTABSCAN .| mask.MDH_REFPHASESTABSCAN
+              .| mask.MDH_RTFEEDBACK .| mask.MDH_HPFEEDBACK)))
+
+    # rtfeedback
+    _try_assign!("rtfeedback", Bool.((mask.MDH_RTFEEDBACK .| mask.MDH_HPFEEDBACK) .& .~mask.MDH_VOP))
+
+    # vop
+    _try_assign!("vop", Bool.(mask.MDH_RTFEEDBACK .& mask.MDH_VOP))
+
+    # phasecor
+    _try_assign!("phasecor", Bool.(mask.MDH_PHASCOR .& (.~mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN)))
+
+    # refscanPC
+    _try_assign!("refscanPC", Bool.(mask.MDH_PHASCOR .& (mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN)))
+
+    # phasestab
+    _try_assign!("phasestab", Bool.((mask.MDH_PHASESTABSCAN .& .~mask.MDH_REFPHASESTABSCAN)
+        .& (.~mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN)))
+
+    # refscan_phasestab
+    _try_assign!("refscan_phasestab", Bool.((mask.MDH_PHASESTABSCAN .& .~mask.MDH_REFPHASESTABSCAN)
+        .& (mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN)))
+
+    # phasestab_ref0
+    _try_assign!("phasestab_ref0", Bool.((mask.MDH_REFPHASESTABSCAN .& .~mask.MDH_PHASESTABSCAN)
+        .& (.~mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN)))
+
+    # refscan_phasestab_ref0
+    _try_assign!("refscan_phasestab_ref0", Bool.((mask.MDH_REFPHASESTABSCAN .& .~mask.MDH_PHASESTABSCAN)
+        .& (mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN)))
+
+    # phasestab_ref1
+    _try_assign!("phasestab_ref1", Bool.((mask.MDH_REFPHASESTABSCAN .& mask.MDH_PHASESTABSCAN)
+        .& (.~mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN)))
+
+    # refscan_phasestab_ref1
+    _try_assign!("refscan_phasestab_ref1", Bool.((mask.MDH_REFPHASESTABSCAN .& mask.MDH_PHASESTABSCAN)
+        .& (mask.MDH_PATREFSCAN .| mask.MDH_PATREFANDIMASCAN)))
 end

@@ -1,135 +1,53 @@
-"""
-    TwixHdr
+# TwixHdr and types are now defined in types.jl
+# Search functionality is now provided by NestedDict.search()
 
-Header object for Siemens twix files. Wraps an AttrDict and provides
-header search functionality.
-"""
-mutable struct TwixHdr
-    data::AttrDict
+# ─── Header value conversion helpers ───────────────────────────────────
+
+"""Safely extract a section from the header, returning nothing if missing."""
+function _get_section(prot::TwixHdr, name::String)
+    haskey(prot.data, name) ? prot.data[name] : nothing
 end
 
-TwixHdr() = TwixHdr(AttrDict())
+"""Convert a header value to Float64, handling string representations."""
+_to_float(val::Number) = Float64(val)
+_to_float(val) = parse(Float64, split(string(val))[1])
 
-Base.getindex(h::TwixHdr, key) = h.data[key]
-Base.setindex!(h::TwixHdr, value, key) = (h.data[key] = value)
-Base.haskey(h::TwixHdr, key) = haskey(h.data, key)
-Base.keys(h::TwixHdr) = keys(h.data)
-Base.values(h::TwixHdr) = values(h.data)
-Base.iterate(h::TwixHdr) = iterate(h.data)
-Base.iterate(h::TwixHdr, state) = iterate(h.data, state)
-
-function Base.getproperty(h::TwixHdr, name::Symbol)
-    if name === :data
-        return getfield(h, :data)
-    end
-    key = String(name)
-    if haskey(h.data, key)
-        return h.data[key]
-    else
-        error("TwixHdr has no key '$key'")
-    end
-end
-
-function Base.setproperty!(h::TwixHdr, name::Symbol, value)
-    if name === :data
-        return setfield!(h, :data, value)
-    end
-    h.data[String(name)] = value
-end
-
-function Base.show(io::IO, h::TwixHdr)
-    println(io, "***twix_hdr***")
-    print(io, "Top level data structures: ")
-    println(io, join(collect(keys(h.data)), "\n"))
-end
-
-function update!(h::TwixHdr, pairs::Pair...)
-    for (k, v) in pairs
-        h.data[k] = v
-    end
-    h
-end
-
-function update!(h::TwixHdr, d::Dict)
-    for (k, v) in d
-        h.data[k] = v
-    end
-    h
-end
+"""Convert a header value to Int, handling string representations."""
+_to_int(val::Number) = Int(val)
+_to_int(val) = parse(Int, split(string(val))[1])
 
 """
-    search_using_tuple(s_terms, key; regex=true)
+    _safe_string(bytes::Vector{UInt8}) -> String
 
-Check whether all search terms match a key (tuple of strings).
+Convert bytes to a String, replacing invalid UTF-8 sequences
+(common in Latin-1 encoded Siemens headers).
 """
-function search_using_tuple(s_terms, key; regex::Bool=true)
-    if regex
-        function regex_tuple(pattern, key_tuple)
-            re_comp = Regex(pattern, "i")
-            for k in key_tuple
-                if occursin(re_comp, string(k))
-                    return true
-                end
-            end
-            return false
-        end
-        return all(st -> regex_tuple(st, key isa Tuple ? key : (key,)), s_terms)
-    else
-        return all(st -> st in key, s_terms)
-    end
-end
-
-"""
-    search_for_keys(hdr, search_terms; top_lvl=nothing, print_flag=true, regex=true)
-
-Search header keys for terms.
-"""
-function search_for_keys(hdr::TwixHdr, search_terms;
-                         top_lvl=nothing, print_flag::Bool=true, regex::Bool=true)
-    if top_lvl === nothing
-        top_lvl_keys = collect(keys(hdr.data))
-    elseif top_lvl isa AbstractString
-        top_lvl_keys = [top_lvl]
-    else
-        top_lvl_keys = collect(top_lvl)
-    end
-
-    out = Dict{String,Vector}()
-    for key in top_lvl_keys
-        matching_keys = []
-        sub_dict = hdr.data[key]
-        if sub_dict isa AttrDict
-            list_of_keys = collect(keys(sub_dict))
-        else
-            list_of_keys = collect(keys(sub_dict))
-        end
-
-        for sub_key in list_of_keys
-            if search_using_tuple(search_terms, sub_key, regex=regex)
-                push!(matching_keys, sub_key)
+function _safe_string(bytes::Vector{UInt8})
+    try
+        return String(copy(bytes))
+    catch
+        # Replace non-ASCII bytes with '?' for safety
+        cleaned = copy(bytes)
+        for i in eachindex(cleaned)
+            if cleaned[i] > 0x7E
+                cleaned[i] = UInt8('?')
             end
         end
-
-        if print_flag
-            println("$key:")
-            for mk in matching_keys
-                println("\t$mk: $(sub_dict[mk])")
-            end
-        end
-
-        out[key] = matching_keys
+        return String(cleaned)
     end
-
-    return out
 end
 
-"""
-    parse_ascconv(buffer::AbstractString) -> AttrDict
+# ─── ASCCONV parsing ──────────────────────────────────────────────────
 
-Parse ASCCONV section from Siemens header buffer.
+"""
+    parse_ascconv(buffer::AbstractString) -> NestedDict
+
+Parse ASCCONV section from Siemens header buffer into a tree structure.
+E.g., `sKSpace.lBaseResolution = 256` becomes accessible as
+`result.sKSpace.lBaseResolution`.
 """
 function parse_ascconv(buffer::AbstractString)
-    mrprot = AttrDict()
+    mrprot = NestedDict()
     re_var = r"(?P<name>\S+)\s*=\s*(?P<value>\S+)"
     re_array = r"(\w+)(?:\[([0-9]+)\])?"
 
@@ -144,7 +62,7 @@ function parse_ascconv(buffer::AbstractString)
             value_str
         end
 
-        # Split array name and index
+        # Split dotted name + array indices into path segments
         vvarray = collect(eachmatch(re_array, name_str))
         parts = String[]
         for vm in vvarray
@@ -154,7 +72,7 @@ function parse_ascconv(buffer::AbstractString)
             end
         end
 
-        mrprot[Tuple(parts)] = value
+        setpath!(mrprot, parts, value)
     end
 
     return mrprot
@@ -166,17 +84,17 @@ end
 Parse XProtocol section from Siemens header buffer.
 """
 function parse_xprot(buffer::AbstractString)
-    xprot = Dict{Any,Any}()
+    xprot = Dict{String,Any}()
 
     re_param = r"<Param(?:Bool|Long|String|Double)\.\"(\w+)\">\s*\{\s*(?:<Precision>\s*[0-9]*)?\s*([^}]*)"
 
     for m in eachmatch(re_param, buffer)
-        name = m[1]
+        name = String(m[1])
         value = strip(m[2])
 
         if length(value) < 5000
             # Remove quotes and nested tags
-            value = replace(value, r"(\"+)|( *<\w*> *[^\n]*)" => "")
+            value = replace(value, r"(\"+ )|( *<\w*> *[^\n]*)" => "")
             value = strip(value)
             # Collapse whitespace
             value = replace(value, r"\s+" => " ")
@@ -195,18 +113,19 @@ function parse_xprot(buffer::AbstractString)
 end
 
 """
-    parse_buffer(buffer::AbstractString) -> AttrDict
+    parse_buffer(buffer::AbstractString) -> NestedDict
 
-Parse a complete header buffer (both ASCCONV and XProtocol sections).
+Parse a complete header buffer (both ASCCONV and XProtocol sections)
+into a single NestedDict tree.
 """
 function parse_buffer(buffer::AbstractString)
     re_ascconv = r"### ASCCONV BEGIN[^\n]*\n(.*?)\s*### ASCCONV END ###"s
 
     ascconv_match = match(re_ascconv, buffer)
     if ascconv_match !== nothing
-        prot = parse_ascconv(ascconv_match.match)
+        prot = parse_ascconv(ascconv_match.captures[1])
     else
-        prot = AttrDict()
+        prot = NestedDict()
     end
 
     # Split around ASCCONV and parse xprot from the rest
@@ -214,6 +133,7 @@ function parse_buffer(buffer::AbstractString)
     xprot_buffer = join(xprot_parts, "")
     prot2 = parse_xprot(xprot_buffer)
 
+    # Merge XProtocol values into the tree
     for (k, v) in prot2
         prot[k] = v
     end
@@ -261,8 +181,8 @@ function read_twix_hdr(fid::IO, prot::TwixHdr)
             break
         end
 
-        # Decode as Latin-1
-        buffer = String(buffer_bytes)
+        # Decode bytes to string (replace invalid UTF-8 for Latin-1 headers)
+        buffer = _safe_string(buffer_bytes)
         # Trim whitespace and drop blank lines
         lines = [strip(l) for l in split(buffer, '\n')]
         buffer = join(filter(!isempty, lines), "\n")
@@ -273,30 +193,20 @@ function read_twix_hdr(fid::IO, prot::TwixHdr)
     rstraj = nothing
 
     # Read gridding info
-    if haskey(prot.data, "Meas") && haskey(prot.data["Meas"], "alRegridMode")
-        regrid_mode_str = prot.data["Meas"]["alRegridMode"]
-        regrid_mode = if regrid_mode_str isa Number
-            Int(regrid_mode_str)
-        else
-            parse(Int, split(string(regrid_mode_str))[1])
-        end
+    meas = _get_section(prot, "Meas")
+    if meas !== nothing && haskey(meas, "alRegridMode")
+        regrid_mode = _to_int(meas["alRegridMode"])
 
         if regrid_mode > 1
-            ncol = if prot.data["Meas"]["alRegridDestSamples"] isa Number
-                Int(prot.data["Meas"]["alRegridDestSamples"])
-            else
-                parse(Int, split(string(prot.data["Meas"]["alRegridDestSamples"]))[1])
-            end
+            ncol = _to_int(meas["alRegridDestSamples"])
 
-            _get_float(val) = val isa Number ? Float64(val) : parse(Float64, split(string(val))[1])
-
-            dwelltime = _get_float(prot.data["Meas"]["aflRegridADCDuration"]) / ncol
+            dwelltime = _to_float(meas["aflRegridADCDuration"]) / ncol
             gr_adc = zeros(Float32, ncol)
-            start = _get_float(prot.data["Meas"]["alRegridDelaySamplesTime"])
+            start = _to_float(meas["alRegridDelaySamplesTime"])
             time_adc = start .+ dwelltime .* (collect(0:ncol-1) .+ 0.5)
-            rampup_time = _get_float(prot.data["Meas"]["alRegridRampupTime"])
-            flattop_time = _get_float(prot.data["Meas"]["alRegridFlattopTime"])
-            rampdown_time = _get_float(prot.data["Meas"]["alRegridRampdownTime"])
+            rampup_time = _to_float(meas["alRegridRampupTime"])
+            flattop_time = _to_float(meas["alRegridFlattopTime"])
+            rampdown_time = _to_float(meas["alRegridRampdownTime"])
 
             ixUp = findall(time_adc .< rampup_time)
             ixFlat = findall((time_adc .>= rampup_time) .& (time_adc .<= rampup_time + flattop_time))
@@ -324,10 +234,10 @@ function read_twix_hdr(fid::IO, prot::TwixHdr)
             rstraj .-= (rstraj[mid] + rstraj[mid+1]) / 2
 
             # Scale by kmax
-            if haskey(prot.data, "MeasYaps")
-                meas_yaps = prot.data["MeasYaps"]
-                base_res = meas_yaps[("sKSpace", "lBaseResolution")]
-                readout_fov = meas_yaps[("sSliceArray", "asSlice", "0", "dReadoutFOV")]
+            meas_yaps = _get_section(prot, "MeasYaps")
+            if meas_yaps !== nothing
+                base_res = _to_float(meas_yaps["sKSpace.lBaseResolution"])
+                readout_fov = _to_float(meas_yaps["sSliceArray.asSlice.0.dReadoutFOV"])
                 kmax = base_res / readout_fov
                 rstraj .*= kmax
             end
