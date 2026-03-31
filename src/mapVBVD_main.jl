@@ -52,9 +52,9 @@ function loop_mdh_read(fid::IO, version::String, Nscans::Int, scan::Int,
     ulDMALength = byteMDH
     isEOF = false
 
-    mdh_blob = zeros(UInt8, byteMDH, 0)
-    szBlob = size(mdh_blob, 2)
-    filePos = Int64[]
+    mdh_blob = Matrix{UInt8}(undef, byteMDH, allocSize)
+    szBlob = allocSize
+    filePos = Vector{Int64}(undef, allocSize)
 
     seek(fid, cPos)
 
@@ -121,17 +121,19 @@ function loop_mdh_read(fid::IO, version::String, Nscans::Int, scan::Int,
 
         n_acq += 1
 
-        # Grow arrays in batches
+        # Grow arrays with doubling strategy (amortized O(1) per insert)
         if n_acq > szBlob
-            mdh_blob = hcat(mdh_blob, zeros(UInt8, byteMDH, allocSize))
-            append!(filePos, zeros(Int64, allocSize))
-            szBlob = size(mdh_blob, 2)
+            newSize = szBlob * 2
+            new_blob = Matrix{UInt8}(undef, byteMDH, newSize)
+            copyto!(new_blob, 1, mdh_blob, 1, byteMDH * szBlob)
+            mdh_blob = new_blob
+            new_fp = Vector{Int64}(undef, newSize)
+            copyto!(new_fp, 1, filePos, 1, szBlob)
+            filePos = new_fp
+            szBlob = newSize
         end
 
         mdh_blob[:, n_acq] = data_u8
-        if n_acq > length(filePos)
-            append!(filePos, zeros(Int64, allocSize))
-        end
         filePos[n_acq] = Int64(cPos)
 
         if print_prog && !p_finished
@@ -191,28 +193,27 @@ function evalMDH(mdh_blob::Matrix{UInt8}, version::String)
     ulPCI_rx = set_bit(Int16.(ulPCI_rx), 8, false)
     mdh_blob[4, :] = UInt8.(get_bit(mdh_blob[4, :], 1))
 
-    # Reinterpret as uint32
-    n_u32 = length(UINT32_RANGE) ÷ sizeof(UInt32)
-    data_uint32 = Matrix{UInt32}(undef, Nmeas, n_u32)
-    for col in 1:Nmeas
-        data_uint32[col, :] = reinterpret(UInt32, mdh_blob[UINT32_RANGE, col])
-    end
+    # Bulk reinterpret: extract contiguous byte sub-matrices, then reinterpret
+    # all acquisitions at once (avoids Nmeas individual allocations per type).
 
-    # Reinterpret as uint16
+    # UInt32 fields
+    n_u32 = length(UINT32_RANGE) ÷ sizeof(UInt32)
+    u32_bytes = mdh_blob[UINT32_RANGE, :]                    # (76, Nmeas) contiguous copy
+    data_uint32 = permutedims(reshape(reinterpret(UInt32, vec(u32_bytes)), n_u32, Nmeas))  # (Nmeas, n_u32)
+
+    # UInt16 fields
     nbytes_u16 = size(mdh_blob, 1) - (UINT16_OFFSET - 1)
     nwords_u16 = nbytes_u16 ÷ 2
-    data_uint16 = Matrix{UInt16}(undef, Nmeas, nwords_u16)
-    for col in 1:Nmeas
-        data_uint16[col, :] = reinterpret(UInt16, mdh_blob[UINT16_OFFSET:UINT16_OFFSET-1+nwords_u16*2, col])
-    end
+    u16_range = UINT16_OFFSET:(UINT16_OFFSET - 1 + nwords_u16 * 2)
+    u16_bytes = mdh_blob[u16_range, :]
+    data_uint16 = permutedims(reshape(reinterpret(UInt16, vec(u16_bytes)), nwords_u16, Nmeas))  # (Nmeas, nwords_u16)
 
-    # Reinterpret as float32
+    # Float32 fields
     nbytes_f32 = size(mdh_blob, 1) - (FLOAT32_OFFSET - 1)
     nwords_f32 = nbytes_f32 ÷ 4
-    data_single = Matrix{Float32}(undef, Nmeas, nwords_f32)
-    for col in 1:Nmeas
-        data_single[col, :] = reinterpret(Float32, mdh_blob[FLOAT32_OFFSET:FLOAT32_OFFSET-1+nwords_f32*4, col])
-    end
+    f32_range = FLOAT32_OFFSET:(FLOAT32_OFFSET - 1 + nwords_f32 * 4)
+    f32_bytes = mdh_blob[f32_range, :]
+    data_single = permutedims(reshape(reinterpret(Float32, vec(f32_bytes)), nwords_f32, Nmeas))  # (Nmeas, nwords_f32)
 
     # Version-dependent fields
     SlicePos = isVD ? data_single[:, F32_SLICE_POS_VD] : data_single[:, F32_SLICE_POS_VB]

@@ -520,7 +520,6 @@ function readData(s::ScanData, mem::AbstractVector{Int64};
     out = reshape(out, selRangeSz[1], selRangeSz[2], :)
 
     szScanHeader = s.readinfo.szScanHeader
-    readSize = rp.sz
     readShape = rp.shape
     readCut = rp.cut
     NCol_int = rp.NCol
@@ -556,24 +555,25 @@ function readData(s::ScanData, mem::AbstractVector{Int64};
 
     fid = open(s.fname, "r")
 
+    # Pre-allocate read buffer as ComplexF32 — Siemens stores interleaved
+    # (real, imag) Float32 pairs which have identical memory layout to ComplexF32.
+    # This eliminates 3 temporary array allocations per acquisition.
+    n_complex = prod(readShape)
+    raw_complex = Vector{ComplexF32}(undef, n_complex)
+    raw_complex_mat = reshape(raw_complex, readShape[1], readShape[2])
+
     p = Progress(kMax, desc="read data ", enabled=true)
 
     for k in 1:kMax
         seek(fid, mem[k] + szScanHeader)
-        raw_floats = Vector{Float32}(undef, prod(readSize))
-        read!(fid, raw_floats)
-
-        raw_mat = reshape(raw_floats, readSize[1], readSize[2])
-
-        raw_complex = try
-            complex_raw = raw_mat[1, :] .+ im .* raw_mat[2, :]
-            reshape(complex_raw, readShape[1], readShape[2])
+        try
+            read!(fid, raw_complex)
         catch
             @warn "Unexpected read error at byte offset $(mem[k] + szScanHeader)"
-            fill(ComplexF32(-Inf), readShape[1], readShape[2])
+            fill!(raw_complex, ComplexF32(-Inf))
         end
 
-        block[:, :, blockCtr + 1] = raw_complex
+        block[:, :, blockCtr + 1] = raw_complex_mat
         blockCtr += 1
 
         if (blockCtr == blockSz) || (k == kMax) || (isBrokenRead && blockCtr > 1)
