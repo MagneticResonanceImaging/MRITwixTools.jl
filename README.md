@@ -5,7 +5,7 @@
 | [![][docs-img]][docs-url] | [![][ci-img]][ci-url] |
 | | [![][docs-ci-img]][docs-ci-url] |
 
-Native Julia port of the [pymapVBVD](https://github.com/wtclarke/pymapvbvd) / Matlab [mapVBVD](https://github.com/pehses/mapVBVD) tool for reading Siemens raw MRI data (twix `.dat` files).
+Native Julia port of the [twixtools](https://github.com/pehses/twixtools) / [pymapVBVD](https://github.com/wtclarke/pymapvbvd) / Matlab [mapVBVD](https://github.com/pehses/mapVBVD) tools for reading Siemens raw MRI data (twix `.dat` files).
 
 Supports both VB and VD/VE/XA software versions.
 
