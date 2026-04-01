@@ -24,9 +24,9 @@ Return data size accounting for OS removal and averaging flags.
 """
 function dataSize(s::ScanData)
     out = fullSize(s)
-    avg = average_dim(s.flags)
+    avg = average_dim(s)
 
-    if s.flags.removeOS
+    if s.removeOS
         out[DIM_COL] = out[DIM_COL] ÷ 2
     end
 
@@ -65,24 +65,24 @@ end
 
 # ─── Flag setters ─────────────────────────────────────────────────────
 
-set_flagRemoveOS!(s::ScanData, val::Bool) = (s.flags.removeOS = val)
+set_flagRemoveOS!(s::ScanData, val::Bool) = (s.removeOS = val)
 
 function set_flagRampSampRegrid!(s::ScanData, val::Bool)
     if val && s.rstrj === nothing
         error("No trajectory for regridding available")
     end
-    s.flags.regrid = val
+    s.regrid = val
 end
 
-set_flagDoAverage!(s::ScanData, val::Bool) = (s.flags.doAverage = val)
-set_flagAverageReps!(s::ScanData, val::Bool) = (s.flags.averageReps = val)
-set_flagAverageSets!(s::ScanData, val::Bool) = (s.flags.averageSets = val)
-set_flagIgnoreSeg!(s::ScanData, val::Bool) = (s.flags.ignoreSeg = val)
-set_flagDisableReflect!(s::ScanData, val::Bool) = (s.flags.disableReflect = val)
+set_flagDoAverage!(s::ScanData, val::Bool) = (s.doAverage = val)
+set_flagAverageReps!(s::ScanData, val::Bool) = (s.averageReps = val)
+set_flagAverageSets!(s::ScanData, val::Bool) = (s.averageSets = val)
+set_flagIgnoreSeg!(s::ScanData, val::Bool) = (s.ignoreSeg = val)
+set_flagDisableReflect!(s::ScanData, val::Bool) = (s.disableReflect = val)
 
 function set_flagSkipToFirstLine!(s::ScanData, val::Bool)
-    if val != s.flags.skipToFirstLine
-        s.flags.skipToFirstLine = val
+    if val != s.skipToFirstLine
+        s.skipToFirstLine = val
         _recompute_skip!(s)
     end
 end
@@ -94,7 +94,7 @@ function _recompute_skip!(s::ScanData)
     d = s.dims
     d === nothing && return
 
-    if s.flags.skipToFirstLine
+    if s.skipToFirstLine
         skipLin = Int(minimum(m.Lin))
         skipPar = Int(minimum(m.Par))
     else
@@ -109,52 +109,29 @@ function _recompute_skip!(s::ScanData)
     )
 end
 
-# ─── Property getters for Python-compatible field access ──────────────
-
+# Property aliases for backward compatibility (flagRemoveOS → removeOS, etc.)
 function Base.getproperty(s::ScanData, name::Symbol)
-    if name === :flagRemoveOS
-        return getfield(s, :flags).removeOS
-    elseif name === :flagRampSampRegrid
-        return getfield(s, :flags).regrid
-    elseif name === :flagDoAverage
-        return getfield(s, :flags).doAverage
-    elseif name === :flagIgnoreSeg
-        return getfield(s, :flags).ignoreSeg
-    elseif name === :flagSkipToFirstLine
-        return getfield(s, :flags).skipToFirstLine
-    elseif name === :flagDisableReflect
-        return getfield(s, :flags).disableReflect
-    elseif name === :flagAverageReps
-        return getfield(s, :flags).averageReps
-    elseif name === :flagAverageSets
-        return getfield(s, :flags).averageSets
-    else
-        return getfield(s, name)
-    end
+    name === :flagRemoveOS       && return getfield(s, :removeOS)
+    name === :flagRampSampRegrid && return getfield(s, :regrid)
+    name === :flagDoAverage      && return getfield(s, :doAverage)
+    name === :flagIgnoreSeg      && return getfield(s, :ignoreSeg)
+    name === :flagSkipToFirstLine && return getfield(s, :skipToFirstLine)
+    name === :flagDisableReflect && return getfield(s, :disableReflect)
+    name === :flagAverageReps    && return getfield(s, :averageReps)
+    name === :flagAverageSets    && return getfield(s, :averageSets)
+    return getfield(s, name)
 end
 
 function Base.setproperty!(s::ScanData, name::Symbol, val)
-    if name === :flagRemoveOS
-        set_flagRemoveOS!(s, val)
-    elseif name === :flagRampSampRegrid
-        set_flagRampSampRegrid!(s, val)
-    elseif name === :flagDoAverage
-        set_flagDoAverage!(s, val)
-    elseif name === :flagIgnoreSeg
-        set_flagIgnoreSeg!(s, val)
-    elseif name === :flagSkipToFirstLine
-        set_flagSkipToFirstLine!(s, val)
-    elseif name === :flagDisableReflect
-        set_flagDisableReflect!(s, val)
-    elseif name === :flagAverageReps
-        set_flagAverageReps!(s, val)
-    elseif name === :flagAverageSets
-        set_flagAverageSets!(s, val)
-    elseif name === :squeeze
-        getfield(s, :flags).squeeze = val
-    else
-        setfield!(s, name, val)
-    end
+    name === :flagRemoveOS       && return set_flagRemoveOS!(s, val)
+    name === :flagRampSampRegrid && return set_flagRampSampRegrid!(s, val)
+    name === :flagDoAverage      && return set_flagDoAverage!(s, val)
+    name === :flagIgnoreSeg      && return set_flagIgnoreSeg!(s, val)
+    name === :flagSkipToFirstLine && return set_flagSkipToFirstLine!(s, val)
+    name === :flagDisableReflect && return set_flagDisableReflect!(s, val)
+    name === :flagAverageReps    && return set_flagAverageReps!(s, val)
+    name === :flagAverageSets    && return set_flagAverageSets!(s, val)
+    return setfield!(s, name, val)
 end
 
 function Base.show(io::IO, s::ScanData)
@@ -325,8 +302,8 @@ function compute_dims!(s::ScanData)
         end
     end
 
-    skipLin = s.flags.skipToFirstLine ? Int(minimum(m.Lin)) : 0
-    skipPar = s.flags.skipToFirstLine ? Int(minimum(m.Par)) : 0
+    skipLin = s.skipToFirstLine ? Int(minimum(m.Lin)) : 0
+    skipPar = s.skipToFirstLine ? Int(minimum(m.Par)) : 0
 
     s.dims = DimSizes(
         m.NCol, m.NCha, NLin, NPar, NSli, NAve, NPhs, NEco,
@@ -345,11 +322,9 @@ function _read_params(s::ScanData)
     ri = s.readinfo
     NCol = m.NCol
     NCha = m.NCha
-    nByte = NCha * (ri.szChannelHeader + 8 * NCol)
-    sz = (2, nByte ÷ 8)
     shape = (NCol + ri.szChannelHeader ÷ 8, NCha)
     cut = (ri.szChannelHeader ÷ 8 + 1):(ri.szChannelHeader ÷ 8 + NCol)
-    return (; sz, shape, cut, NCol, NCha)
+    return (; shape, cut, NCol, NCha)
 end
 
 # ─── Index calculation ────────────────────────────────────────────────
@@ -412,12 +387,12 @@ function calcRange(s::ScanData, S)
         compute_dims!(s)
     end
     ds = dataSize(s)
-    avg = average_dim(s.flags)
+    avg = average_dim(s)
 
     selRange = [collect(1:ds[k]) for k in 1:N_DIMS]
     outSize = ones(Int, N_DIMS)
 
-    bSqueeze = s.flags.squeeze
+    bSqueeze = s.squeeze
 
     if S === nothing || S === Colon()
         for k in 1:N_DIMS
@@ -528,9 +503,9 @@ function readData(s::ScanData, mem::AbstractVector{Int64};
 
     m = s.meta
     bIsReflected = m.IsReflected[cIxToRaw]
-    bRegrid = s.flags.regrid && s.rstrj !== nothing && length(s.rstrj) > 1
+    bRegrid = s.regrid && s.rstrj !== nothing && length(s.rstrj) > 1
 
-    ro_shift = Float64.(m.ROoffcenter[cIxToRaw]) .* Float64(!s.flags.ignoreROoffcenter)
+    ro_shift = Float64.(m.ROoffcenter[cIxToRaw]) .* Float64(!s.ignoreROoffcenter)
     isBrokenRead = false
 
     # Block processing
@@ -585,7 +560,7 @@ function readData(s::ScanData, mem::AbstractVector{Int64};
             ix = (k - blockCtr + 1):k
 
             # Reflect
-            if !s.flags.disableReflect
+            if !s.disableReflect
                 for j in 1:blockCtr
                     if bIsReflected[ix[j]]
                         blk[:, :, j] = blk[end:-1:1, :, j]
@@ -619,7 +594,7 @@ function readData(s::ScanData, mem::AbstractVector{Int64};
             end
 
             # Remove oversampling
-            if s.flags.removeOS
+            if s.removeOS
                 for j in 1:blockCtr
                     for ch in 1:size(blk, 2)
                         tmp = ifft(blk[:, ch, j])
@@ -703,7 +678,7 @@ function readData(s::ScanData, mem::AbstractVector{Int64};
 
     out = reshape(out, Tuple(outSize))
 
-    if s.flags.squeeze
+    if s.squeeze
         return dropdims_all(out)
     else
         return out
@@ -721,7 +696,7 @@ or a tuple of ranges for slicing.
 function getdata(s::ScanData; key=nothing)
     selRange, selRangeSz, outSize = calcRange(s, key)
     m = s.meta
-    avg = average_dim(s.flags)
+    avg = average_dim(s)
     d = s.dims
 
     ixToRaw, _ = calcIndices(s)

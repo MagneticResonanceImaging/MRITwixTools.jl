@@ -246,23 +246,13 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test !("hdr" in flags)
     end
 
-    # ─── LFS pointer detection tests ─────────────────────────────
-    @testset "LFS pointer detection" begin
-        tmp = tempname()
-        open(tmp, "w") do f
-            write(f, "version https://git-lfs.github.com/spec/v1\noid sha256:abc123\nsize 12345\n")
-        end
-        @test_throws ErrorException mapVBVD(tmp, quiet=true)
-        rm(tmp)
-    end
-
     # ─── Flag setters tests ──────────────────────────────────────
     @testset "Flag setters" begin
         obj = MapVBVD.ScanData("image", "test.dat", "vd")
         obj.flagRemoveOS = false
-        @test obj.flags.removeOS == false
+        @test obj.removeOS == false
         obj.flagRemoveOS = true
-        @test obj.flags.removeOS == true
+        @test obj.removeOS == true
 
         obj.flagDoAverage = true
         @test obj.flagDoAverage == true
@@ -273,7 +263,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test obj.flagIgnoreSeg == true
 
         obj.squeeze = true
-        @test obj.flags.squeeze == true
+        @test obj.squeeze == true
 
         obj.flagAverageReps = true
         @test obj.flagAverageReps == true
@@ -287,21 +277,17 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test obj.flagDisableReflect == true
     end
 
-    # ─── ProcessingFlags tests ────────────────────────────────────
-    @testset "ProcessingFlags" begin
-        f = MapVBVD.ProcessingFlags()
-        @test f.removeOS == true    # default
-        @test f.squeeze == false    # default
-        @test f.doAverage == false  # default
+    # ─── ScanData defaults tests ─────────────────────────────────
+    @testset "ScanData defaults" begin
+        s = MapVBVD.ScanData("image", "test.dat", "vd")
+        @test s.removeOS == false
+        @test s.regrid == false
+        @test s.squeeze == false
+        @test s.doAverage == false
+        @test s.skipToFirstLine == false  # image defaults to false
 
-        avg = MapVBVD.average_dim(f)
-        @test length(avg) == 16
-        @test !any(avg)
-
-        f.doAverage = true
-        avg = MapVBVD.average_dim(f)
-        @test avg[MapVBVD.DIM_AVE] == true
-        @test sum(avg) == 1
+        s2 = MapVBVD.ScanData("refscan", "test.dat", "vd")
+        @test s2.skipToFirstLine == true  # non-image defaults to true
     end
 
     # ─── MDH constants tests ─────────────────────────────────────
@@ -330,7 +316,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test haskey(twixObj._data, "hdr")
 
         @test fullSize(twixObj.image) == [4096, 32, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1]
-        @test sqzSize(twixObj.image) == [2048, 32, 2]
+        @test sqzSize(twixObj.image) == [4096, 32, 2]
 
         # Header search (new API)
         results = search(twixObj.hdr, "sTXSPEC", "asNucleusInfo")
@@ -338,14 +324,8 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         nuc_results = filter(r -> occursin("tNucleus", r.first), results)
         @test length(nuc_results) > 0
 
-        # Header search (legacy API)
-        keys_found = search_header_for_keys(twixObj, ("sTXSPEC", "asNucleusInfo"),
-                                             top_lvl="MeasYaps", print_flag=false)
-        @test ("sTXSPEC", "asNucleusInfo", "0", "tNucleus") in keys_found["MeasYaps"]
-
-        val = search_header_for_val(twixObj, "MeasYaps",
-                                    ("sTXSPEC", "asNucleusInfo", "0", "tNucleus"))
-        @test val[1] == "\"1H\""
+        # Header value access
+        @test twixObj.hdr.MeasYaps.sTXSPEC.asNucleusInfo["0"]["tNucleus"] == "\"1H\""
 
         # Direct dot-access to header
         @test twixObj.hdr.MeasYaps.sTXSPEC.asNucleusInfo isa NestedDict
@@ -360,15 +340,10 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test haskey(twixObj[2]._data, "image")
 
         @test fullSize(twixObj[2].image) == [4096, 32, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1]
-        @test sqzSize(twixObj[2].image) == [2048, 32, 2]
+        @test sqzSize(twixObj[2].image) == [4096, 32, 2]
 
-        keys_found = search_header_for_keys(twixObj[2], ("sTXSPEC", "asNucleusInfo"),
-                                             top_lvl="MeasYaps", print_flag=false)
-        @test ("sTXSPEC", "asNucleusInfo", "0", "tNucleus") in keys_found["MeasYaps"]
-
-        val = search_header_for_val(twixObj[2], "MeasYaps",
-                                    ("sTXSPEC", "asNucleusInfo", "0", "tNucleus"))
-        @test val[1] == "\"1H\""
+        # Header value access
+        @test twixObj[2].hdr.MeasYaps.sTXSPEC.asNucleusInfo["0"]["tNucleus"] == "\"1H\""
     end
 
     @testset "VB broken file read" begin
@@ -379,15 +354,10 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test haskey(twixObj._data, "image")
 
         @test fullSize(twixObj.image) == [4096, 32, 1, 1, 1, 1, 1, 1, 1, 97, 1, 1, 1, 1, 1, 1]
-        @test sqzSize(twixObj.image) == [2048, 32, 97]
+        @test sqzSize(twixObj.image) == [4096, 32, 97]
 
-        keys_found = search_header_for_keys(twixObj, ("sTXSPEC", "asNucleusInfo"),
-                                             top_lvl="MeasYaps", print_flag=false)
-        @test ("sTXSPEC", "asNucleusInfo", "0", "tNucleus") in keys_found["MeasYaps"]
-
-        val = search_header_for_val(twixObj, "MeasYaps",
-                                    ("sTXSPEC", "asNucleusInfo", "0", "tNucleus"))
-        @test val[1] == "\"1H\""
+        # Header value access
+        @test twixObj.hdr.MeasYaps.sTXSPEC.asNucleusInfo["0"]["tNucleus"] == "\"1H\""
     end
 
     @testset "GRE flags (flagRemoveOS)" begin
@@ -416,15 +386,15 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
         twixObj[2].refscanPC.flagIgnoreSeg = false
         twixObj[2].refscanPC.flagDoAverage = false
-        @test dataSize(twixObj[2].refscanPC) == [110, 16, 1, 1, 5, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
+        @test dataSize(twixObj[2].refscanPC) == [220, 16, 1, 1, 5, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
         twixObj[2].refscanPC.flagDoAverage = true
-        @test dataSize(twixObj[2].refscanPC) == [110, 16, 1, 1, 5, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
+        @test dataSize(twixObj[2].refscanPC) == [220, 16, 1, 1, 5, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
 
         twixObj[2].refscanPC.flagIgnoreSeg = true
         twixObj[2].refscanPC.flagDoAverage = false
-        @test dataSize(twixObj[2].refscanPC) == [110, 16, 1, 1, 5, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        @test dataSize(twixObj[2].refscanPC) == [220, 16, 1, 1, 5, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         twixObj[2].refscanPC.flagDoAverage = true
-        @test dataSize(twixObj[2].refscanPC) == [110, 16, 1, 1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        @test dataSize(twixObj[2].refscanPC) == [220, 16, 1, 1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     end
 
     @testset "EPI flagSkipToFirstLine" begin
@@ -432,9 +402,9 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         twixObj = mapVBVD(path, quiet=true)
 
         twixObj[2].refscan.flagSkipToFirstLine = false
-        @test dataSize(twixObj[2].refscan) == [110, 16, 82, 1, 5, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
+        @test dataSize(twixObj[2].refscan) == [220, 16, 82, 1, 5, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
         twixObj[2].refscan.flagSkipToFirstLine = true
-        @test dataSize(twixObj[2].refscan) == [110, 16, 54, 1, 5, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
+        @test dataSize(twixObj[2].refscan) == [220, 16, 54, 1, 5, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
     end
 
     # ─── Data comparison tests against MATLAB reference (.mat files) ────

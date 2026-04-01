@@ -1,46 +1,4 @@
-# ─── Processing Flags ──────────────────────────────────────────────────
 
-"""
-    ProcessingFlags
-
-Mutable flags controlling how data is read and processed.
-"""
-mutable struct ProcessingFlags
-    removeOS::Bool
-    regrid::Bool
-    doAverage::Bool
-    averageReps::Bool
-    averageSets::Bool
-    ignoreSeg::Bool
-    squeeze::Bool
-    disableReflect::Bool
-    skipToFirstLine::Bool
-    ignoreROoffcenter::Bool
-end
-
-function ProcessingFlags(; removeOS=true, regrid=true, doAverage=false,
-                          averageReps=false, averageSets=false, ignoreSeg=false,
-                          squeeze=false, disableReflect=false, skipToFirstLine=false,
-                          ignoreROoffcenter=false)
-    ProcessingFlags(removeOS, regrid, doAverage, averageReps, averageSets,
-                    ignoreSeg, squeeze, disableReflect, skipToFirstLine,
-                    ignoreROoffcenter)
-end
-
-"""
-    average_dim(flags::ProcessingFlags) -> Vector{Bool}
-
-Return a length-16 boolean vector indicating which dimensions are averaged,
-indexed by DIM_* constants.
-"""
-function average_dim(flags::ProcessingFlags)
-    v = fill(false, N_DIMS)
-    v[DIM_AVE] = flags.doAverage
-    v[DIM_REP] = flags.averageReps
-    v[DIM_SET] = flags.averageSets
-    v[DIM_SEG] = flags.ignoreSeg
-    return v
-end
 
 # ─── File Read Info ────────────────────────────────────────────────────
 
@@ -214,9 +172,20 @@ mutable struct ScanData
     version::String
     rstrj::Union{Nothing,Vector{Float64}}
 
-    # Configuration
-    flags::ProcessingFlags
+    # Read layout (determined by software version)
     readinfo::ReadInfo
+
+    # Processing flags (all default to false = no processing)
+    removeOS::Bool
+    regrid::Bool
+    doAverage::Bool
+    averageReps::Bool
+    averageSets::Bool
+    ignoreSeg::Bool
+    squeeze::Bool
+    disableReflect::Bool
+    skipToFirstLine::Bool
+    ignoreROoffcenter::Bool
 
     # State (populated during read)
     meta::Union{Nothing,AcquisitionMeta}
@@ -230,34 +199,50 @@ end
 Construct a `ScanData` for a given scan type.
 """
 function ScanData(dataType::String, fname::String, version::String,
-                  rstraj=nothing; kwargs...)
+                  rstraj=nothing;
+                  removeOS::Bool          = false,
+                  regrid::Bool            = false,
+                  doAverage::Bool         = false,
+                  averageReps::Bool       = false,
+                  averageSets::Bool       = false,
+                  ignoreSeg::Bool         = false,
+                  squeeze::Bool           = false,
+                  disableReflect::Bool    = false,
+                  skipToFirstLine::Union{Bool,Nothing} = nothing,
+                  ignoreROoffcenter::Bool = false)
     dType = lowercase(dataType)
 
-    regrid_flag = get(kwargs, :regrid, true)
-    if rstraj === nothing
-        regrid_flag = false
+    # Can't regrid without a trajectory
+    regrid = regrid && rstraj !== nothing
+
+    # Non-image scans skip to first acquired line by default
+    if skipToFirstLine === nothing
+        skipToFirstLine = !(dType == "image" || dType == "phasestab")
     end
-
-    skipToFirstLine = !(dType == "image" || dType == "phasestab")
-
-    pflags = ProcessingFlags(
-        removeOS = get(kwargs, :removeOS, true),
-        regrid = regrid_flag,
-        doAverage = get(kwargs, :doAverage, false),
-        averageReps = get(kwargs, :averageReps, false),
-        averageSets = get(kwargs, :averageSets, false),
-        ignoreSeg = get(kwargs, :ignoreSeg, false),
-        squeeze = get(kwargs, :squeeze, false),
-        disableReflect = get(kwargs, :disableReflect, false),
-        skipToFirstLine = skipToFirstLine,
-        ignoreROoffcenter = get(kwargs, :ignoreROoffcenter, false),
-    )
 
     ri = ReadInfo(version)
 
     ScanData(dType, fname, version,
              rstraj === nothing ? nothing : Float64.(rstraj),
-             pflags, ri, nothing, nothing, false)
+             ri,
+             removeOS, regrid, doAverage, averageReps, averageSets,
+             ignoreSeg, squeeze, disableReflect, skipToFirstLine,
+             ignoreROoffcenter,
+             nothing, nothing, false)
+end
+
+"""
+    average_dim(s::ScanData) -> Vector{Bool}
+
+Return a length-16 boolean vector indicating which dimensions are averaged.
+"""
+function average_dim(s::ScanData)
+    v = fill(false, N_DIMS)
+    v[DIM_AVE] = s.doAverage
+    v[DIM_REP] = s.averageReps
+    v[DIM_SET] = s.averageSets
+    v[DIM_SEG] = s.ignoreSeg
+    return v
 end
 
 # ─── TwixObj (top-level result container) ──────────────────────────────

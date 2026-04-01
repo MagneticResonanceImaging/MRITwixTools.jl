@@ -16,60 +16,89 @@ Or in development mode:
 Pkg.develop(path="/path/to/MapVBVD.jl")
 ```
 
-## Usage
+## Quick Start
 
 ```julia
 using MapVBVD
 
-# Read a twix file
+# Read a twix file (returns raw data by default — no processing)
 twixObj = mapVBVD("meas_MID00305.dat")
 
 # For multi-raid files (VD+), twixObj is a Vector{TwixObj}
 # For single files (VB), it is a single TwixObj
 
-# Access image data
-twixObj.image.flagRemoveOS = true
-data = getdata(twixObj.image)  # returns full data array
+# Read image data
+data = getdata(twixObj.image)
 
 # Or with slicing (1-based Julia indexing)
 data = twixObj.image[1:128, :, :]
 
-# Check available MDH flags
-flags = MDH_flags(twixObj)
-
-# Access header
-hdr = twixObj.hdr
-
-# Search header keys
-keys = search_header_for_keys(twixObj, ("sTXSPEC", "asNucleusInfo"), top_lvl="MeasYaps")
-
-# Get header values
-vals = search_header_for_val(twixObj, "MeasYaps", ("sTXSPEC", "asNucleusInfo", "0", "tNucleus"))
+# Check available scan types
+MDH_flags(twixObj)  # e.g. ["image", "noise", "refscan"]
 ```
 
-## Flags
+## Processing Options
 
-Control data processing with the following flags:
+By default, `mapVBVD` returns raw data with no processing. Enable processing either at load time or afterwards:
 
 ```julia
-twixObj.image.flagRemoveOS = true          # Remove oversampling
-twixObj.image.flagRampSampRegrid = true     # Ramp sample regridding
-twixObj.image.flagDoAverage = true          # Average across averages
-twixObj.image.flagAverageReps = true        # Average across repetitions
-twixObj.image.flagAverageSets = true        # Average across sets
-twixObj.image.flagIgnoreSeg = true          # Ignore segments
-twixObj.image.flagSkipToFirstLine = false   # Don't skip to first line
-twixObj.image.flagDisableReflect = false    # Don't disable line reflection
-twixObj.image.squeeze = true               # Squeeze singleton dimensions
+# At load time
+twixObj = mapVBVD("meas.dat", removeOS=true, squeeze=true)
+
+# Or afterwards
+twixObj.image.removeOS = true
+twixObj.image.squeeze = true
+data = getdata(twixObj.image)
 ```
 
-## Differences from Python version
+Available flags (all `false` by default):
+
+```julia
+twixObj.image.removeOS = true          # Remove 2× readout oversampling
+twixObj.image.regrid = true            # Ramp sample regridding
+twixObj.image.doAverage = true         # Average across averages
+twixObj.image.averageReps = true       # Average across repetitions
+twixObj.image.averageSets = true       # Average across sets
+twixObj.image.ignoreSeg = true         # Collapse segments dimension
+twixObj.image.squeeze = true           # Drop singleton dimensions
+twixObj.image.disableReflect = true    # Skip readout reflection correction
+twixObj.image.ignoreROoffcenter = true # Ignore readout off-center shifts
+```
+
+## Header Access
+
+Headers support tab-completion at every level:
+
+```julia
+hdr = twixObj.hdr
+
+# Dot access (tab-completable)
+hdr.MeasYaps.sKSpace.lBaseResolution  # => 256.0
+
+# Path string access
+hdr["MeasYaps"]["sKSpace.lBaseResolution"]  # => 256.0
+
+# Search across all header sections
+search(hdr, "lBaseRes")
+# => ["MeasYaps.sKSpace.lBaseResolution" => 256.0,
+#     "Phoenix.sKSpace.lBaseResolution" => 128.0]
+
+# Search with multiple terms (AND logic)
+search(hdr, "sTXSPEC", "Nucleus")
+# => ["MeasYaps.sTXSPEC.asNucleusInfo.0.tNucleus" => "\"1H\""]
+
+# List all leaf values
+leaves(hdr)
+```
+
+## Differences from Python/Matlab versions
 
 - **1-based indexing**: All array indices are 1-based (Julia convention)
-- **Data access**: Use `getdata(obj)` instead of `obj['']`, or `obj[ranges...]` for sliced access
-- **Properties**: Flag properties use Julia's `setproperty!` syntax: `obj.flagRemoveOS = true`
-- **Header search**: Use `search_header_for_keys(twixObj, terms)` instead of `twixObj.search_header_for_keys(terms)`
-- **MDH flags**: Use `MDH_flags(twixObj)` instead of `twixObj.MDH_flags()`
+- **No processing by default**: `removeOS` and `regrid` default to `false`
+- **Data access**: Use `getdata(obj)` or `obj[ranges...]`
+- **Direct flag access**: `obj.removeOS = true` (no `flag` prefix needed)
+- **Header search**: `search(hdr, "term")` returns `["dotted.path" => value]` pairs
+- **MDH flags**: `MDH_flags(twixObj)` (free function, not method)
 
 ## Dependencies
 
