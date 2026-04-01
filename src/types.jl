@@ -158,20 +158,19 @@ function dim_extent(d::DimSizes, i::Int)
     error("Invalid dimension index: $i")
 end
 
-# ─── ScanData (replaces TwixMapObj) ───────────────────────────────────
+# ─── RawData ─────────────────────────────────────────────────────────
 
 """
-    ScanData
+    RawData
 
 Main data object for one scan type (image, noise, refscan, etc.).
 Stores MDH metadata and provides lazy data loading from the twix file.
 
-Replaces the old `TwixMapObj` with a cleaner, type-stable design:
 - `flags`: mutable processing flags
 - `meta`: per-acquisition metadata (Nothing until MDH is read)
 - `dims`: computed dimension sizes (Nothing until `compute_dims!` is called)
 """
-mutable struct ScanData
+mutable struct RawData
     # Identity
     dType::String
     fname::String
@@ -200,11 +199,11 @@ mutable struct ScanData
 end
 
 """
-    ScanData(dataType, fname, version, rstraj=nothing; kwargs...)
+    RawData(dataType, fname, version, rstraj=nothing; kwargs...)
 
-Construct a `ScanData` for a given scan type.
+Construct a `RawData` for a given scan type.
 """
-function ScanData(dataType::String, fname::String, version::Symbol,
+function RawData(dataType::String, fname::String, version::Symbol,
                   rstraj=nothing;
                   removeOS::Bool          = false,
                   regrid::Bool            = false,
@@ -228,7 +227,7 @@ function ScanData(dataType::String, fname::String, version::Symbol,
 
     ri = ReadInfo(version)
 
-    ScanData(dType, fname, version,
+    RawData(dType, fname, version,
              rstraj === nothing ? nothing : Float64.(rstraj),
              ri,
              removeOS, regrid, doAverage, averageReps, averageSets,
@@ -238,11 +237,11 @@ function ScanData(dataType::String, fname::String, version::Symbol,
 end
 
 """
-    average_dim(s::ScanData) -> Vector{Bool}
+    average_dim(s::RawData) -> Vector{Bool}
 
 Return a length-16 boolean vector indicating which dimensions are averaged.
 """
-function average_dim(s::ScanData)
+function average_dim(s::RawData)
     v = fill(false, N_DIMS)
     v[DIM_AVE] = s.doAverage
     v[DIM_REP] = s.averageReps
@@ -272,9 +271,9 @@ Base.keys(t::TwixObj) = keys(getfield(t, :_data))
 Base.delete!(t::TwixObj, key::String) = delete!(getfield(t, :_data), key)
 Base.pop!(t::TwixObj, key::String, default=nothing) = pop!(getfield(t, :_data), key, default)
 
-# Type-annotated helper: narrows return to Union{TwixHdr,ScanData}
+# Type-annotated helper: narrows return to Union{TwixHdr,RawData}
 # so the REPL can infer propertynames for chained tab-completion.
-_twixobj_val(t::TwixObj, key::String)::Union{TwixHdr, ScanData} = getfield(t, :_data)[key]
+_twixobj_val(t::TwixObj, key::String)::Union{TwixHdr, RawData} = getfield(t, :_data)[key]
 
 function Base.getproperty(t::TwixObj, name::Symbol)
     name === :_data && return getfield(t, :_data)
@@ -315,9 +314,9 @@ function Base.show(io::IO, ::MIME"text/plain", t::TwixObj)
     end
     for k in scan_keys
         v = t._data[k]
-        if v isa ScanData && v.meta !== nothing
+        if v isa RawData && v.meta !== nothing
             println(io, "  📊 ", k, " (", v.meta.NAcq, " acq, size ", sqzSize(v), ")")
-        elseif v isa ScanData
+        elseif v isa RawData
             println(io, "  📊 ", k, " [no data]")
         else
             println(io, "  ", k)

@@ -15,8 +15,6 @@ include("read_twix_hdr.jl")
 include("twix_map_obj.jl")
 include("mdh.jl")
 
-# Keep old name as alias for backward compatibility
-const TwixMapObj = ScanData
 
 # Public API
 export mapVBVD
@@ -42,7 +40,7 @@ or a `Vector{TwixObj}` for multi-raid (VD+) files.
 - `bReadHeader::Bool=true`: whether to read the header
 - `bReadMDH::Bool=true`: whether to read MDH data
 
-The following flags are forwarded to each `ScanData` object and control
+The following flags are forwarded to each `RawData` object and control
 how data is processed when read via `getdata` / `unsorted`:
 - `removeOS::Bool=false`: remove 2× readout oversampling via FFT crop
 - `regrid::Bool=false`: regrid non-Cartesian (ramp-sampled) readouts
@@ -114,7 +112,7 @@ function mapVBVD(filename::String;
         end
 
         if bReadMDH
-            make_scan(dtype) = ScanData(dtype, filename, version, rstraj;
+            make_scan(dtype) = RawData(dtype, filename, version, rstraj;
                                         removeOS=removeOS, regrid=regrid,
                                         doAverage=doAverage, averageReps=averageReps,
                                         averageSets=averageSets, ignoreSeg=ignoreSeg,

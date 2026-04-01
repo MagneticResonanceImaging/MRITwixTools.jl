@@ -81,10 +81,10 @@ mapVBVD("file.dat")
   │
   ├── TwixObj
   │     ├── .hdr     → TwixHdr (nested header tree with tab-completion)
-  │     ├── .image   → ScanData (image acquisitions)
-  │     ├── .noise   → ScanData (noise adjustments)
-  │     ├── .refscan → ScanData (GRAPPA reference lines)
-  │     └── ...      → ScanData (other scan types)
+  │     ├── .image   → RawData (image acquisitions)
+  │     ├── .noise   → RawData (noise adjustments)
+  │     ├── .refscan → RawData (GRAPPA reference lines)
+  │     └── ...      → RawData (other scan types)
   │
   └── Vector{TwixObj}   (for multi-raid VD/VE/XA files)
 ```

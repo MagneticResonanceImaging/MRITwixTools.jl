@@ -54,10 +54,10 @@ The key insight is the `::NestedDict` return type annotation on `_getprop_subtre
 The same technique applies to `TwixObj`:
 
 ```julia
-_twixobj_val(t::TwixObj, key::String)::Union{TwixHdr, ScanData} = getfield(t, :_data)[key]
+_twixobj_val(t::TwixObj, key::String)::Union{TwixHdr, RawData} = getfield(t, :_data)[key]
 ```
 
-Julia's REPL handles small `Union` types well — it offers `propertynames` from *both* `TwixHdr` and `ScanData`, with the correct ones appearing at runtime based on evaluation.
+Julia's REPL handles small `Union` types well — it offers `propertynames` from *both* `TwixHdr` and `RawData`, with the correct ones appearing at runtime based on evaluation.
 
 ## TwixHdr Delegation
 

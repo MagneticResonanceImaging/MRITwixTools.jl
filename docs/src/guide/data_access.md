@@ -2,7 +2,7 @@
 
 ## Reading Data
 
-After loading a twix file, access scan data through the `ScanData` objects stored on the `TwixObj`:
+After loading a twix file, access scan data through the `RawData` objects stored on the `TwixObj`:
 
 ```julia
 twixObj = mapVBVD("meas.dat")
@@ -71,7 +71,7 @@ sqzDims(twixObj.image)    # names of non-singleton dimensions
 
 ## Slicing / Indexing
 
-Use standard Julia indexing on `ScanData` objects:
+Use standard Julia indexing on `RawData` objects:
 
 ```julia
 # Read all data

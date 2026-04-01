@@ -1,11 +1,11 @@
-# ─── ScanData property interface (flag access) ────────────────────────
+# ─── RawData property interface (flag access) ─────────────────────────
 
 """
-    fullSize(s::ScanData) -> Vector{Int}
+    fullSize(s::RawData) -> Vector{Int}
 
 Return the full 16-element dimension size vector.
 """
-function fullSize(s::ScanData)
+function fullSize(s::RawData)
     if s.dims === nothing
         compute_dims!(s)
     end
@@ -18,11 +18,11 @@ function fullSize(s::ScanData)
 end
 
 """
-    dataSize(s::ScanData) -> Vector{Int}
+    dataSize(s::RawData) -> Vector{Int}
 
 Return data size accounting for OS removal and averaging flags.
 """
-function dataSize(s::ScanData)
+function dataSize(s::RawData)
     out = fullSize(s)
     avg = average_dim(s)
 
@@ -44,43 +44,43 @@ function dataSize(s::ScanData)
 end
 
 """
-    sqzSize(s::ScanData) -> Vector{Int}
+    sqzSize(s::RawData) -> Vector{Int}
 
 Return data sizes with singleton dimensions removed.
 """
-function sqzSize(s::ScanData)
+function sqzSize(s::RawData)
     ds = dataSize(s)
     return ds[ds .> 1]
 end
 
 """
-    sqzDims(s::ScanData) -> Vector{String}
+    sqzDims(s::RawData) -> Vector{String}
 
 Return dimension names for non-singleton dimensions.
 """
-function sqzDims(s::ScanData)
+function sqzDims(s::RawData)
     ds = dataSize(s)
     return DIM_NAMES[ds .> 1]
 end
 
 # ─── Flag setters ─────────────────────────────────────────────────────
 
-set_flagRemoveOS!(s::ScanData, val::Bool) = (s.removeOS = val)
+set_flagRemoveOS!(s::RawData, val::Bool) = (s.removeOS = val)
 
-function set_flagRampSampRegrid!(s::ScanData, val::Bool)
+function set_flagRampSampRegrid!(s::RawData, val::Bool)
     if val && s.rstrj === nothing
         error("No trajectory for regridding available")
     end
     s.regrid = val
 end
 
-set_flagDoAverage!(s::ScanData, val::Bool) = (s.doAverage = val)
-set_flagAverageReps!(s::ScanData, val::Bool) = (s.averageReps = val)
-set_flagAverageSets!(s::ScanData, val::Bool) = (s.averageSets = val)
-set_flagIgnoreSeg!(s::ScanData, val::Bool) = (s.ignoreSeg = val)
-set_flagDisableReflect!(s::ScanData, val::Bool) = (s.disableReflect = val)
+set_flagDoAverage!(s::RawData, val::Bool) = (s.doAverage = val)
+set_flagAverageReps!(s::RawData, val::Bool) = (s.averageReps = val)
+set_flagAverageSets!(s::RawData, val::Bool) = (s.averageSets = val)
+set_flagIgnoreSeg!(s::RawData, val::Bool) = (s.ignoreSeg = val)
+set_flagDisableReflect!(s::RawData, val::Bool) = (s.disableReflect = val)
 
-function set_flagSkipToFirstLine!(s::ScanData, val::Bool)
+function set_flagSkipToFirstLine!(s::RawData, val::Bool)
     if val != s.skipToFirstLine
         s.skipToFirstLine = val
         _recompute_skip!(s)
@@ -88,7 +88,7 @@ function set_flagSkipToFirstLine!(s::ScanData, val::Bool)
 end
 
 """Recompute dims when skipToFirstLine changes."""
-function _recompute_skip!(s::ScanData)
+function _recompute_skip!(s::RawData)
     s.meta === nothing && return
     m = s.meta
     d = s.dims
@@ -110,7 +110,7 @@ function _recompute_skip!(s::ScanData)
 end
 
 # Property aliases for backward compatibility (flagRemoveOS → removeOS, etc.)
-function Base.getproperty(s::ScanData, name::Symbol)
+function Base.getproperty(s::RawData, name::Symbol)
     name === :flagRemoveOS       && return getfield(s, :removeOS)
     name === :flagRampSampRegrid && return getfield(s, :regrid)
     name === :flagDoAverage      && return getfield(s, :doAverage)
@@ -122,7 +122,7 @@ function Base.getproperty(s::ScanData, name::Symbol)
     return getfield(s, name)
 end
 
-function Base.setproperty!(s::ScanData, name::Symbol, val)
+function Base.setproperty!(s::RawData, name::Symbol, val)
     name === :flagRemoveOS       && return set_flagRemoveOS!(s, val)
     name === :flagRampSampRegrid && return set_flagRampSampRegrid!(s, val)
     name === :flagDoAverage      && return set_flagDoAverage!(s, val)
@@ -134,24 +134,24 @@ function Base.setproperty!(s::ScanData, name::Symbol, val)
     return setfield!(s, name, val)
 end
 
-function Base.show(io::IO, s::ScanData)
+function Base.show(io::IO, s::RawData)
     if s.meta === nothing
-        print(io, "ScanData ($(s.dType)) [no data loaded]")
+        print(io, "RawData ($(s.dType)) [no data loaded]")
     else
         fs = fullSize(s)
-        print(io, "ScanData ($(s.dType)) ")
+        print(io, "RawData ($(s.dType)) ")
         print(io, "$(s.meta.NAcq) acq, size $(sqzSize(s))")
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", s::ScanData)
+function Base.show(io::IO, ::MIME"text/plain", s::RawData)
     if s.meta === nothing
-        println(io, "ScanData ($(s.dType)) [no data loaded]")
+        println(io, "RawData ($(s.dType)) [no data loaded]")
         println(io, "  File: $(s.fname)")
         println(io, "  Software: $(s.version)")
     else
         fs = fullSize(s)
-        println(io, "ScanData ($(s.dType))")
+        println(io, "RawData ($(s.dType))")
         println(io, "  File: $(s.fname)")
         println(io, "  Software: $(s.version)")
         println(io, "  Acquisitions: $(s.meta.NAcq)")
@@ -163,11 +163,11 @@ end
 # ─── MDH reading ─────────────────────────────────────────────────────
 
 """
-    readMDH!(s::ScanData, mdh::MDH, filePos, useScan)
+    readMDH!(s::RawData, mdh::MDH, filePos, useScan)
 
-Extract MDH values for the selected scans and populate the ScanData.
+Extract MDH values for the selected scans and populate the RawData.
 """
-function readMDH!(s::ScanData, mdh::MDH, filePos::Vector{Int64}, useScan::AbstractVector{Bool})
+function readMDH!(s::RawData, mdh::MDH, filePos::Vector{Int64}, useScan::AbstractVector{Bool})
     nAcq = sum(useScan)
     sLC = mdh.sLC
     evalInfoMask1 = mdh.aulEvalInfoMask[useScan, 1]
@@ -222,11 +222,11 @@ function readMDH!(s::ScanData, mdh::MDH, filePos::Vector{Int64}, useScan::Abstra
 end
 
 """
-    tryAndFixLastMdh!(s::ScanData)
+    tryAndFixLastMdh!(s::RawData)
 
 Attempt to recover from read errors by trimming the last acquisition.
 """
-function tryAndFixLastMdh!(s::ScanData)
+function tryAndFixLastMdh!(s::RawData)
     s.meta === nothing && return
 
     isLastAcqGood = false
@@ -267,11 +267,11 @@ function tryAndFixLastMdh!(s::ScanData)
 end
 
 """
-    compute_dims!(s::ScanData)
+    compute_dims!(s::RawData)
 
 Compute dimension sizes from acquisition metadata.
 """
-function compute_dims!(s::ScanData)
+function compute_dims!(s::RawData)
     m = s.meta
     m === nothing && return
 
@@ -316,8 +316,8 @@ end
 
 # ─── Read info helpers ────────────────────────────────────────────────
 
-"""Compute file read parameters from ScanData."""
-function _read_params(s::ScanData)
+"""Compute file read parameters from RawData."""
+function _read_params(s::RawData)
     m = s.meta
     ri = s.readinfo
     NCol = m.NCol
@@ -330,11 +330,11 @@ end
 # ─── Index calculation ────────────────────────────────────────────────
 
 """
-    calcIndices(s::ScanData) -> (ixToRaw, ixToTarget)
+    calcIndices(s::RawData) -> (ixToRaw, ixToTarget)
 
 Calculate mapping from MDH acquisitions to target array positions.
 """
-function calcIndices(s::ScanData)
+function calcIndices(s::RawData)
     m = s.meta
     fs = fullSize(s)
     d = s.dims
@@ -378,11 +378,11 @@ end
 # ─── Range calculation ────────────────────────────────────────────────
 
 """
-    calcRange(s::ScanData, S) -> (selRange, selRangeSz, outSize)
+    calcRange(s::RawData, S) -> (selRange, selRangeSz, outSize)
 
 Calculate selection ranges for data retrieval.
 """
-function calcRange(s::ScanData, S)
+function calcRange(s::RawData, S)
     if s.dims === nothing
         compute_dims!(s)
     end
@@ -449,11 +449,11 @@ end
 # ─── Unsorted data access ────────────────────────────────────────────
 
 """
-    unsorted(s::ScanData, ival=nothing)
+    unsorted(s::RawData, ival=nothing)
 
 Return unsorted data [NCol, NCha, #samples].
 """
-function unsorted(s::ScanData, ival=nothing)
+function unsorted(s::RawData, ival=nothing)
     m = s.meta
     if ival !== nothing
         mem = [m.memPos[ival]]
@@ -470,7 +470,7 @@ end
 
 Read raw data from file. Core I/O routine.
 """
-function readData(s::ScanData, mem::AbstractVector{Int64};
+function readData(s::RawData, mem::AbstractVector{Int64};
                   cIxToTarg=nothing, cIxToRaw=nothing,
                   selRange=nothing, selRangeSz=nothing, outSize=nothing)
 
@@ -688,12 +688,12 @@ end
 # ─── getdata ─────────────────────────────────────────────────────────
 
 """
-    getdata(s::ScanData; key=nothing)
+    getdata(s::RawData; key=nothing)
 
-Retrieve data from the ScanData. Pass `key=nothing` for all data,
+Retrieve data from the RawData. Pass `key=nothing` for all data,
 or a tuple of ranges for slicing.
 """
-function getdata(s::ScanData; key=nothing)
+function getdata(s::RawData; key=nothing)
     selRange, selRangeSz, outSize = calcRange(s, key)
     m = s.meta
     avg = average_dim(s)
@@ -759,7 +759,7 @@ function getdata(s::ScanData; key=nothing)
 end
 
 # Allow obj[:] syntax via getindex
-function Base.getindex(s::ScanData, args...)
+function Base.getindex(s::RawData, args...)
     getdata(s; key=args)
 end
 
@@ -771,7 +771,7 @@ end
 Replace a loop counter with new values. Note: because AcquisitionMeta
 is immutable, this rebuilds the entire meta struct.
 """
-function fixLoopCounter!(s::ScanData, loop::String, newLoop::Vector)
+function fixLoopCounter!(s::RawData, loop::String, newLoop::Vector)
     m = s.meta
     m === nothing && error("No acquisition metadata loaded")
     if length(newLoop) != m.NAcq

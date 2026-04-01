@@ -237,15 +237,15 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test result[4] ≈ 7.5
     end
 
-    # ─── ScanData construction tests ─────────────────────────────
-    @testset "ScanData construction" begin
-        obj = MapVBVD.ScanData("image", "test.dat", :vd)
+    # ─── RawData construction tests ─────────────────────────────
+    @testset "RawData construction" begin
+        obj = MapVBVD.RawData("image", "test.dat", :vd)
         @test obj.dType == "image"
         @test obj.version === :vd
         @test obj.readinfo.szScanHeader == 192
         @test obj.readinfo.szChannelHeader == 32
 
-        obj_vb = MapVBVD.ScanData("noise", "test.dat", :vb)
+        obj_vb = MapVBVD.RawData("noise", "test.dat", :vb)
         @test obj_vb.readinfo.szScanHeader == 0
         @test obj_vb.readinfo.szChannelHeader == 128
     end
@@ -264,10 +264,10 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
     @testset "TwixObj" begin
         t = MapVBVD.TwixObj()
         t["hdr"] = MapVBVD.TwixHdr()
-        t["image"] = MapVBVD.ScanData("image", "test.dat", :vd)
+        t["image"] = MapVBVD.RawData("image", "test.dat", :vd)
         @test haskey(t, "hdr")
         @test haskey(t, "image")
-        @test t.image isa MapVBVD.ScanData
+        @test t.image isa MapVBVD.RawData
         flags = MDH_flags(t)
         @test "image" in flags
         @test !("hdr" in flags)
@@ -275,7 +275,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     # ─── Flag setters tests ──────────────────────────────────────
     @testset "Flag setters" begin
-        obj = MapVBVD.ScanData("image", "test.dat", :vd)
+        obj = MapVBVD.RawData("image", "test.dat", :vd)
         obj.flagRemoveOS = false
         @test obj.removeOS == false
         obj.flagRemoveOS = true
@@ -304,16 +304,16 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test obj.flagDisableReflect == true
     end
 
-    # ─── ScanData defaults tests ─────────────────────────────────
-    @testset "ScanData defaults" begin
-        s = MapVBVD.ScanData("image", "test.dat", :vd)
+    # ─── RawData defaults tests ─────────────────────────────────
+    @testset "RawData defaults" begin
+        s = MapVBVD.RawData("image", "test.dat", :vd)
         @test s.removeOS == false
         @test s.regrid == false
         @test s.squeeze == false
         @test s.doAverage == false
         @test s.skipToFirstLine == false  # image defaults to false
 
-        s2 = MapVBVD.ScanData("refscan", "test.dat", :vd)
+        s2 = MapVBVD.RawData("refscan", "test.dat", :vd)
         @test s2.skipToFirstLine == true  # non-image defaults to true
     end
 
@@ -327,10 +327,6 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test MapVBVD.DIM_NAMES[MapVBVD.DIM_IDE] == "Ide"
     end
 
-    # ─── TwixMapObj alias test ───────────────────────────────────
-    @testset "TwixMapObj alias" begin
-        @test MapVBVD.TwixMapObj === MapVBVD.ScanData
-    end
 
     # ─── Integration tests with real data from GitHub ───────────────────
 

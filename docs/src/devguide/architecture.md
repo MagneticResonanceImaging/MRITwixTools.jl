@@ -9,9 +9,9 @@ src/
 ├── MapVBVD.jl            # Module definition, exports, mapVBVD() entry point
 ├── nested_dict.jl        # NestedDict — tree-structured dict with tab-completion
 ├── mdh_constants.jl      # Named constants for MDH binary layout
-├── types.jl              # Struct definitions (ScanData, TwixObj, MDH, TwixHdr, etc.)
+├── types.jl              # Struct definitions (RawData, TwixObj, MDH, TwixHdr, etc.)
 ├── read_twix_hdr.jl      # Header parsing (ASCCONV + XProtocol)
-├── twix_map_obj.jl       # ScanData methods (dimensions, flags, data I/O)
+├── twix_map_obj.jl       # RawData methods (dimensions, flags, data I/O)
 └── mdh.jl                # MDH binary parsing (bit ops, loop_mdh_read, evalMDH)
 ```
 
@@ -31,7 +31,7 @@ The `mapVBVD()` entry point lives in `MapVBVD.jl` after all includes, since it d
 mapVBVD() → TwixObj
   ├── "hdr" → TwixHdr (NestedDict wrapper)
   │     └── sections as NestedDict trees: hdr.MeasYaps.sKSpace.lBaseResolution → 256
-  └── "image" → ScanData
+  └── "image" → RawData
         ├── readinfo::ReadInfo          (binary layout params)
         ├── removeOS, regrid, ...       (Bool processing flags)
         ├── meta::Union{Nothing, AcquisitionMeta}  (per-acquisition MDH data)
@@ -42,7 +42,7 @@ mapVBVD() → TwixObj
 ## The `getfield` Rule
 
 !!! danger "Critical for contributors"
-    Because `getproperty` is overridden on `NestedDict`, `TwixHdr`, `TwixObj`, and `ScanData`, **all internal code must use `getfield(obj, :field)` instead of `obj.field`** when accessing actual struct fields.
+    Because `getproperty` is overridden on `NestedDict`, `TwixHdr`, `TwixObj`, and `RawData`, **all internal code must use `getfield(obj, :field)` instead of `obj.field`** when accessing actual struct fields.
 
 This is the most common source of bugs when modifying this code:
 
@@ -62,13 +62,13 @@ The `NestedDict` helpers (`_st`, `_lv`, `_has`, `_get`, `_set!`, `_del!`) encaps
 
 ## Key Design Decisions
 
-### 1. ScanData — Flat Flags, Composed Sub-structs
+### 1. RawData — Flat Flags, Composed Sub-structs
 
-Processing flags (`removeOS`, `regrid`, `doAverage`, etc.) are direct `Bool` fields on `ScanData`. No separate `ProcessingFlags` struct — this keeps things simple.
+Processing flags (`removeOS`, `regrid`, `doAverage`, etc.) are direct `Bool` fields on `RawData`. No separate `ProcessingFlags` struct — this keeps things simple.
 
 Defaults are defined in two places only:
-- **`ScanData` constructor** — keyword arguments, all `false`
-- **`mapVBVD` function** — keyword arguments forwarded to `ScanData`
+- **`RawData` constructor** — keyword arguments, all `false`
+- **`mapVBVD` function** — keyword arguments forwarded to `RawData`
 
 ### 2. Immutable AcquisitionMeta
 
@@ -88,7 +88,7 @@ const SCAN_TYPES = ["image", "noise", "phasecor", ...]
 
 ### 4. Twix Format Versions
 
-The `version` field on `ScanData` is a `Symbol` — either `:vb` or `:vd`:
+The `version` field on `RawData` is a `Symbol` — either `:vb` or `:vd`:
 
 - **`:vb`** — VB-format files: single-measurement, 128-byte MDH, channel header embedded in MDH
 - **`:vd`** — VD/VE/XA-format files: multi-raid, 184-byte MDH, separate scan and channel headers

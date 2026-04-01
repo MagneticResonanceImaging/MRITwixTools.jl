@@ -20,7 +20,7 @@ MDH_flags
 
 ## Processing Flag Setters
 
-These are exported convenience functions that set processing flags on a [`MapVBVD.ScanData`](@ref) object.
+These are exported convenience functions that set processing flags on a [`MapVBVD.RawData`](@ref) object.
 Direct field access (e.g., `obj.removeOS = true`) is preferred for new code.
 
 | Function | Equivalent |
@@ -48,7 +48,7 @@ setpath!
 ```@docs
 MapVBVD.TwixObj
 MapVBVD.TwixHdr
-MapVBVD.ScanData
+MapVBVD.RawData
 MapVBVD.ReadInfo
 MapVBVD.AcquisitionMeta
 MapVBVD.DimSizes
