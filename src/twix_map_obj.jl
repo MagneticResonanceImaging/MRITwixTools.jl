@@ -760,7 +760,11 @@ end
 
 # Allow obj[:] syntax via getindex
 function Base.getindex(s::RawData, args...)
-    getdata(s; key=args)
+    # In Julia, x[:] returns a flat 1D vector — replicate that behavior
+    if length(args) == 1 && args[1] === Colon()
+        return vec(getdata(s; key=args))
+    end
+    return getdata(s; key=args)
 end
 
 # ─── Utilities ────────────────────────────────────────────────────────
