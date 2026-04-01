@@ -98,26 +98,5 @@ all_params = leaves(hdr)
 #     ...]
 ```
 
-## How Tab-Completion Works
-
-Julia's REPL uses compile-time type inference (`Core.Compiler.return_type`) to determine what `getproperty` returns, then calls `propertynames` on that type. With a plain `Dict{String, Any}`, the inferred return type is `Any`, and completion stops.
-
-MapVBVD.jl solves this with **split storage** inside [`NestedDict`](@ref):
-
-```julia
-struct NestedDict
-    _subtrees::Dict{String, NestedDict}   # child NestedDicts
-    _leaves::Dict{String, Any}            # leaf values
-end
-```
-
-A type-annotated helper ensures the compiler sees `NestedDict` as the return type when accessing subtrees:
-
-```julia
-_getprop_subtree(n::NestedDict, key::String)::NestedDict = ...
-```
-
-The compiler follows this annotation, infers `NestedDict`, and offers `propertynames(::NestedDict)` at the next level — enabling **unlimited chained tab-completion** through the entire header tree.
-
-!!! note "The getfield rule"
-    Because `getproperty` is overridden on `NestedDict`, `TwixHdr`, `TwixObj`, and `ScanData`, all **internal** code must use `getfield(obj, :field)` instead of `obj.field` when accessing struct fields. See the [Architecture](architecture.md) page for details.
+!!! tip "For details on how tab-completion works internally"
+    See [Tab-Completion Internals](../devguide/tab_completion.md) in the Developer Guide.

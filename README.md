@@ -1,14 +1,19 @@
 # MapVBVD.jl
 
+| **Documentation** | **Build Status** |
+|:------------------|:-----------------|
+| [![][docs-img]][docs-url] | [![][ci-img]][ci-url] |
+| | [![][docs-ci-img]][docs-ci-url] |
+
 Native Julia port of the [pymapVBVD](https://github.com/wtclarke/pymapvbvd) / Matlab [mapVBVD](https://github.com/pehses/mapVBVD) tool for reading Siemens raw MRI data (twix `.dat` files).
 
-Supports both VB and VD/VE software versions.
+Supports both VB and VD/VE/XA software versions.
 
 ## Installation
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/<your-repo>/MapVBVD.jl")
+Pkg.add(url="https://github.com/JakobAsslaender/MapVBVD.jl")
 ```
 
 Or in development mode:
@@ -24,8 +29,8 @@ using MapVBVD
 # Read a twix file (returns raw data by default — no processing)
 twixObj = mapVBVD("meas_MID00305.dat")
 
-# For multi-raid files (VD+), twixObj is a Vector{TwixObj}
-# For single files (VB), it is a single TwixObj
+# For multi-raid files (VD/VE/XA), twixObj is a Vector{TwixObj}
+# For single-raid files (VB), it is a single TwixObj
 
 # Read image data
 data = getdata(twixObj.image)
@@ -98,14 +103,40 @@ search(hdr, "Nucleus", "1H", search_values=true)
 leaves(hdr)
 ```
 
-## Differences from Python/Matlab versions
+## Comparison with Other Twix Readers
 
-- **1-based indexing**: All array indices are 1-based (Julia convention)
-- **No processing by default**: `removeOS` and `regrid` default to `false`
-- **Data access**: Use `getdata(obj)` or `obj[ranges...]`
-- **Direct flag access**: `obj.removeOS = true` (no `flag` prefix needed)
-- **Header search**: `search(hdr, "term")` returns `["dotted.path" => value]` pairs
-- **MDH flags**: `MDH_flags(twixObj)` (free function, not method)
+Several tools exist for reading Siemens twix (`.dat`) files:
+
+- [mapVBVD](https://github.com/pehses/mapVBVD) — the original MATLAB tool by Philipp Ehses
+- [pymapVBVD](https://github.com/wtclarke/pymapvbvd) — Python port by Will Clarke
+- [twixtools](https://github.com/pehses/twixtools) — Python reader/writer with low-level mdb access by Philipp Ehses
+
+### Defaults
+
+| | mapVBVD (MATLAB) | pymapVBVD (Python) | twixtools (Python) | MapVBVD.jl |
+|:---|:---:|:---:|:---:|:---:|
+| Indexing | 1-based | 0-based | 0-based | 1-based |
+| `removeOS` | `false` | `True` | `False` | `false` |
+| `regrid` | `false` | `True` | `False` | `false` |
+
+### Syntax
+
+| | mapVBVD | pymapVBVD | twixtools | MapVBVD.jl |
+|:---|:---|:---|:---|:---|
+| Read data | `twix.image()` | `twix.image['']` | loop over `mdb` list | `getdata(twix.image)` |
+| Slice data | `twix.image(:,:,1)` | `twix.image[:,:,0]` | — | `twix.image[:,:,1]` |
+| Squeeze | `twix.image{''}` | `.squeeze = True` | manual | `.squeeze = true` |
+| Set flag | `.flagRemoveOS = 1` | `.flagRemoveOS = True` | `.flags['remove_os']` | `.removeOS = true` |
+| Header | `hdr.MeasYaps` (struct) | `hdr.MeasYaps[tuple]` | `hdr['MeasYaps']` | `hdr.MeasYaps.sKSpace...` |
+| Search | — | `search_header_for_keys` | — | `search(hdr, terms...)` |
+
+### Feature Support
+
+| | mapVBVD | pymapVBVD | twixtools | MapVBVD.jl |
+|:---|:---:|:---:|:---:|:---:|
+| Write support | — | — | ✓ | — |
+| Low-level mdb access | — | — | ✓ | — |
+| Multi-raid (VD/VE/XA) | ✓ | ✓ | ✓ | ✓ |
 
 ## Dependencies
 
@@ -115,6 +146,13 @@ leaves(hdr)
 
 ## Credits
 
-This is a native Julia port of the Python [pymapVBVD](https://github.com/wtclarke/pymapvbvd) by Will Clarke, which is itself a port of Philipp Ehses' original Matlab [mapVBVD](https://github.com/pehses/mapVBVD).
+This is a native Julia port of the Python [pymapVBVD](https://github.com/wtclarke/pymapvbvd) by Will Clarke, which is itself a port of Philipp Ehses' original Matlab [mapVBVD](https://github.com/pehses/mapVBVD). See also Philipp Ehses' [twixtools](https://github.com/pehses/twixtools), which provides reading, writing, and low-level mdb access for twix files in Python.
 
 Released under the MIT License.
+
+[docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-url]: https://JakobAsslaender.github.io/MapVBVD.jl/stable
+[ci-img]: https://github.com/JakobAsslaender/MapVBVD.jl/workflows/CI/badge.svg
+[ci-url]: https://github.com/JakobAsslaender/MapVBVD.jl/actions
+[docs-ci-img]: https://github.com/JakobAsslaender/MapVBVD.jl/workflows/Documentation/badge.svg
+[docs-ci-url]: https://github.com/JakobAsslaender/MapVBVD.jl/actions

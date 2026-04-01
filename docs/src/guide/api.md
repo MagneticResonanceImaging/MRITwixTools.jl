@@ -38,7 +38,7 @@ Direct field access (e.g., `obj.removeOS = true`) is preferred for new code.
 
 ```@docs
 NestedDict
-MapVBVD.search
+search
 leaves
 setpath!
 ```
@@ -52,25 +52,4 @@ MapVBVD.ScanData
 MapVBVD.ReadInfo
 MapVBVD.AcquisitionMeta
 MapVBVD.DimSizes
-```
-
-## Internal Functions
-
-These are not exported but may be useful for advanced usage:
-
-```@docs
-MapVBVD.compute_dims!
-MapVBVD.readMDH!
-MapVBVD.tryAndFixLastMdh!
-MapVBVD.calcIndices
-MapVBVD.calcRange
-MapVBVD.readData
-MapVBVD.fixLoopCounter!
-MapVBVD.average_dim
-MapVBVD.loop_counter
-MapVBVD.dim_extent
-MapVBVD.parse_ascconv
-MapVBVD.parse_xprot
-MapVBVD.parse_buffer
-MapVBVD.cumtrapz
 ```

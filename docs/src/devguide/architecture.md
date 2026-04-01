@@ -62,41 +62,7 @@ The `NestedDict` helpers (`_st`, `_lv`, `_has`, `_get`, `_set!`, `_del!`) encaps
 
 ## Key Design Decisions
 
-### 1. NestedDict with Split Storage
-
-**Problem**: Julia's REPL tab-completion uses `Core.Compiler.return_type` to determine what `getproperty` returns. With `Dict{String,Any}`, the return type is `Any`, and tab-completion fails beyond the first level.
-
-**Solution**: Split internal storage into two typed dicts:
-
-```julia
-struct NestedDict
-    _subtrees::Dict{String,NestedDict}  # child NestedDicts
-    _leaves::Dict{String,Any}           # leaf values (numbers, strings, etc.)
-end
-```
-
-A type-annotated helper ensures the compiler sees `NestedDict` as the return type for subtree access:
-
-```julia
-_getprop_subtree(n::NestedDict, key::String)::NestedDict = getfield(n, :_subtrees)[key]
-```
-
-The REPL's inference follows this path, sees `::NestedDict`, and enables chained tab-completion at every level.
-
-!!! note "No existing Julia package provides this"
-    `PropertyDicts.jl` is the closest but returns `Any` from `getproperty`, breaking REPL inference. If Julia's REPL ever gains evaluation-based completion (instead of inference-based), a simpler approach would suffice.
-
-### 2. TwixObj Return Type Narrowing
-
-Same technique for `TwixObj`:
-
-```julia
-_twixobj_val(t::TwixObj, key::String)::Union{TwixHdr, ScanData} = getfield(t, :_data)[key]
-```
-
-Julia's REPL handles small `Union` types well — it offers `propertynames` from both types, with the correct ones appearing at runtime.
-
-### 3. ScanData — Flat Flags, Composed Sub-structs
+### 1. ScanData — Flat Flags, Composed Sub-structs
 
 Processing flags (`removeOS`, `regrid`, `doAverage`, etc.) are direct `Bool` fields on `ScanData`. No separate `ProcessingFlags` struct — this keeps things simple.
 
@@ -104,11 +70,11 @@ Defaults are defined in two places only:
 - **`ScanData` constructor** — keyword arguments, all `false`
 - **`mapVBVD` function** — keyword arguments forwarded to `ScanData`
 
-### 4. Immutable AcquisitionMeta
+### 2. Immutable AcquisitionMeta
 
 `AcquisitionMeta` is immutable. Trimming acquisitions (in `tryAndFixLastMdh!`) requires rebuilding the entire struct. This is a deliberate trade-off for type stability during data reading.
 
-### 5. Named Constants for MDH Binary Layout
+### 3. Named Constants for MDH Binary Layout
 
 All magic numbers are extracted to `mdh_constants.jl`:
 
@@ -119,6 +85,26 @@ const BIT_REFLECT = 24
 const DIM_COL = 1
 const SCAN_TYPES = ["image", "noise", "phasecor", ...]
 ```
+
+### 4. Twix Format Versions
+
+The `version` field on `ScanData` is a `Symbol` — either `:vb` or `:vd`:
+
+- **`:vb`** — VB-format files: single-measurement, 128-byte MDH, channel header embedded in MDH
+- **`:vd`** — VD/VE/XA-format files: multi-raid, 184-byte MDH, separate scan and channel headers
+
+The `:vd` label covers all post-VB formats (VD, VE, XA) since they share the same binary layout. Symbols are used instead of strings for zero-allocation comparison (`===`) and to enable potential method dispatch.
+
+### 5. Type Improvements over Original
+
+| Field | Before | After |
+|-------|--------|-------|
+| Loop counters | `Float64` | `Int32` |
+| Dimension sizes | `Float64` | `Int` |
+| File positions | `Float64` | `Int64` |
+| Reflection flags | `Vector{Bool}` | `BitVector` |
+
+For details on the NestedDict split-storage design and how REPL tab-completion works, see [Tab-Completion Internals](tab_completion.md).
 
 ## Data Flow
 
@@ -137,27 +123,6 @@ mapVBVD(filename)
   └── compute_dims!(scandata)            # Compute DimSizes from AcquisitionMeta
 ```
 
-## Performance Notes
-
-Three performance optimizations were applied to hot paths:
-
-1. **Doubling growth for `mdh_blob`** (`mdh.jl:loop_mdh_read`) — the MDH byte buffer uses a doubling strategy with `copyto!` instead of `hcat` with fixed 4096-column growth. Reduces total copy cost from O(n²) to O(n).
-
-2. **Bulk vectorized `reinterpret` in `evalMDH`** (`mdh.jl`) — instead of per-column `reinterpret` loops, extracts contiguous byte sub-matrices and uses `reshape(reinterpret(..., vec(...)), ...)` for a single bulk operation per data type.
-
-3. **Zero-copy `ComplexF32` read buffer** (`twix_map_obj.jl:readData`) — Siemens stores interleaved `(real, imag)` Float32 pairs, which have identical memory layout to `ComplexF32`. A pre-allocated `Vector{ComplexF32}` is read via `read!`, eliminating 3 temporary array allocations per acquisition.
-
-With `removeOS=false` (the default), data reading is close to disk-limited on modern SSDs.
-
-## Type Improvements over Original
-
-| Field | Before | After |
-|-------|--------|-------|
-| Loop counters | `Float64` | `Int32` |
-| Dimension sizes | `Float64` | `Int` |
-| File positions | `Float64` | `Int64` |
-| Reflection flags | `Vector{Bool}` | `BitVector` |
-
 ## ASCCONV Parsing
 
 Siemens ASCCONV sections contain lines like:
@@ -175,6 +140,18 @@ setpath!(result, ["sTXSPEC", "asNucleusInfo", "0", "tNucleus"], "\"1H\"")
 ```
 
 Array indices like `[0]` become string keys `"0"` in the tree. These are included in `propertynames` (via the `all(isdigit, k)` check) so tab-completion works for them too.
+
+## Performance Notes
+
+Three performance optimizations were applied to hot paths:
+
+1. **Doubling growth for `mdh_blob`** (`mdh.jl:loop_mdh_read`) — the MDH byte buffer uses a doubling strategy with `copyto!` instead of `hcat` with fixed 4096-column growth. Reduces total copy cost from O(n²) to O(n).
+
+2. **Bulk vectorized `reinterpret` in `evalMDH`** (`mdh.jl`) — instead of per-column `reinterpret` loops, extracts contiguous byte sub-matrices and uses `reshape(reinterpret(..., vec(...)), ...)` for a single bulk operation per data type.
+
+3. **Zero-copy `ComplexF32` read buffer** (`twix_map_obj.jl:readData`) — Siemens stores interleaved `(real, imag)` Float32 pairs, which have identical memory layout to `ComplexF32`. A pre-allocated `Vector{ComplexF32}` is read via `read!`, eliminating 3 temporary array allocations per acquisition.
+
+With `removeOS=false` (the default), data reading is close to disk-limited on modern SSDs.
 
 ## Known Limitations / Future Work
 

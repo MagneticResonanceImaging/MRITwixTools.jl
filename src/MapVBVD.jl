@@ -78,7 +78,7 @@ function mapVBVD(filename::String;
     secondInt = read(fid, UInt32)
 
     if (firstInt < 10000) && (secondInt <= 64)
-        version = "vd"
+        version = :vd
         NScans = Int(secondInt)
         measID = read(fid, UInt32)
         fileID = read(fid, UInt32)
@@ -90,7 +90,7 @@ function mapVBVD(filename::String;
             skip(fid, 152 - 16)
         end
     else
-        version = "vb"
+        version = :vb
         measOffset = UInt64[0]
         measLength = UInt64[fileSize]
         NScans = 1

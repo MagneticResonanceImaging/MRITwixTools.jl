@@ -220,7 +220,6 @@ search(hdr, "1H", search_values=true)      # find leaves whose value contains "1
 search(hdr, "Nucleus", "1H", search_values=true)  # path contains "Nucleus" AND value contains "1H"
 ```
 """
-
 function search(n::NestedDict, terms::AbstractString...; regex::Bool=true, leaves_only::Bool=true, search_values::Bool=false)
     results = Pair{String,Any}[]
     _search_recurse!(results, n, String[], terms, regex, leaves_only, search_values)

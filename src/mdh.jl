@@ -36,14 +36,14 @@ struct EOFError <: Exception end
 Read all MDHs (measurement data headers) from the twix file.
 Returns (mdh_blob, filePos, isEOF).
 """
-function loop_mdh_read(fid::IO, version::String, Nscans::Int, scan::Int,
+function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
                        measOffset::UInt64, measLength::UInt64;
                        print_prog::Bool=true)
-    isVD = version == "vd"
+    isVD = version === :vd
     byteMDH = isVD ? MDH_SIZE_VD : MDH_SIZE_VB
 
-    if !(version == "vb" || version == "vd")
-        @warn "Software version \"$version\" is not supported."
+    if !(version === :vb || version === :vd)
+        @warn "Software version :$version is not supported (expected :vb or :vd)."
     end
 
     cPos = position(fid)
@@ -179,8 +179,8 @@ end
 
 Parse MDH binary blob into structured MDH and mask objects.
 """
-function evalMDH(mdh_blob::Matrix{UInt8}, version::String)
-    isVD = version == "vd"
+function evalMDH(mdh_blob::Matrix{UInt8}, version::Symbol)
+    isVD = version === :vd
     if isVD
         # Remove 20 unnecessary bytes (rows 21:40 in 1-based indexing)
         mdh_blob = vcat(mdh_blob[1:20, :], mdh_blob[21+VD_EXTRA_BYTES:end, :])

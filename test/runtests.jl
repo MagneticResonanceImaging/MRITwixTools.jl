@@ -239,13 +239,13 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     # ─── ScanData construction tests ─────────────────────────────
     @testset "ScanData construction" begin
-        obj = MapVBVD.ScanData("image", "test.dat", "vd")
+        obj = MapVBVD.ScanData("image", "test.dat", :vd)
         @test obj.dType == "image"
-        @test obj.version == "vd"
+        @test obj.version === :vd
         @test obj.readinfo.szScanHeader == 192
         @test obj.readinfo.szChannelHeader == 32
 
-        obj_vb = MapVBVD.ScanData("noise", "test.dat", "vb")
+        obj_vb = MapVBVD.ScanData("noise", "test.dat", :vb)
         @test obj_vb.readinfo.szScanHeader == 0
         @test obj_vb.readinfo.szChannelHeader == 128
     end
@@ -264,7 +264,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
     @testset "TwixObj" begin
         t = MapVBVD.TwixObj()
         t["hdr"] = MapVBVD.TwixHdr()
-        t["image"] = MapVBVD.ScanData("image", "test.dat", "vd")
+        t["image"] = MapVBVD.ScanData("image", "test.dat", :vd)
         @test haskey(t, "hdr")
         @test haskey(t, "image")
         @test t.image isa MapVBVD.ScanData
@@ -275,7 +275,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     # ─── Flag setters tests ──────────────────────────────────────
     @testset "Flag setters" begin
-        obj = MapVBVD.ScanData("image", "test.dat", "vd")
+        obj = MapVBVD.ScanData("image", "test.dat", :vd)
         obj.flagRemoveOS = false
         @test obj.removeOS == false
         obj.flagRemoveOS = true
@@ -306,14 +306,14 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     # ─── ScanData defaults tests ─────────────────────────────────
     @testset "ScanData defaults" begin
-        s = MapVBVD.ScanData("image", "test.dat", "vd")
+        s = MapVBVD.ScanData("image", "test.dat", :vd)
         @test s.removeOS == false
         @test s.regrid == false
         @test s.squeeze == false
         @test s.doAverage == false
         @test s.skipToFirstLine == false  # image defaults to false
 
-        s2 = MapVBVD.ScanData("refscan", "test.dat", "vd")
+        s2 = MapVBVD.ScanData("refscan", "test.dat", :vd)
         @test s2.skipToFirstLine == true  # non-image defaults to true
     end
 

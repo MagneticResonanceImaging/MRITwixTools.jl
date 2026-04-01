@@ -14,12 +14,18 @@ struct ReadInfo
     iceParamSz::Int
 end
 
-ReadInfo(version::String) = if version == "vb"
+"""    ReadInfo(version::Symbol)
+
+Construct `ReadInfo` from a twix format version:
+- `:vb` — VB-format files (single-measurement, 128-byte MDH)
+- `:vd` — VD/VE/XA-format files (multi-raid, 184-byte MDH)
+"""
+ReadInfo(version::Symbol) = if version === :vb
     ReadInfo(0, VB_CHANNEL_HEADER_SIZE, 4)
-elseif version == "vd"
+elseif version === :vd
     ReadInfo(VD_SCAN_HEADER_SIZE, VD_CHANNEL_HEADER_SIZE, 24)
 else
-    error("Software version '$version' not supported")
+    error("Software version :$version not supported (expected :vb or :vd)")
 end
 
 # ─── Per-Acquisition Metadata ──────────────────────────────────────────
@@ -169,7 +175,7 @@ mutable struct ScanData
     # Identity
     dType::String
     fname::String
-    version::String
+    version::Symbol   # :vb (VB format) or :vd (VD/VE/XA format)
     rstrj::Union{Nothing,Vector{Float64}}
 
     # Read layout (determined by software version)
@@ -198,7 +204,7 @@ end
 
 Construct a `ScanData` for a given scan type.
 """
-function ScanData(dataType::String, fname::String, version::String,
+function ScanData(dataType::String, fname::String, version::Symbol,
                   rstraj=nothing;
                   removeOS::Bool          = false,
                   regrid::Bool            = false,
