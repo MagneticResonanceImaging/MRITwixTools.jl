@@ -202,25 +202,33 @@ end
 # ─── Search ─────────────────────────────────────────────────────────────
 
 """
-    search(n::NestedDict, terms...; regex=true, leaves_only=true) -> Vector{Pair{String,Any}}
+    search(n::NestedDict, terms...; regex=true, leaves_only=true, search_values=false) -> Vector{Pair{String,Any}}
 
 Search all paths in the tree for entries whose full dotted path matches
 **all** given terms. Returns a vector of `"dotted.path" => value` pairs.
 
+# Keyword Arguments
+- `regex::Bool=true`: treat each term as a case-insensitive regex (otherwise plain substring match)
+- `leaves_only::Bool=true`: only return leaf values, not intermediate subtree nodes
+- `search_values::Bool=false`: also match terms against the string representation of leaf values
+
 # Examples
 ```julia
-search(hdr, "sTXSPEC", "Nucleus")
-search(hdr, "lBaseRes")
+search(hdr, "sTXSPEC", "Nucleus")         # match path components
+search(hdr, "lBaseRes")                    # find all keys containing "lBaseRes"
+search(hdr, "1H", search_values=true)      # find leaves whose value contains "1H"
+search(hdr, "Nucleus", "1H", search_values=true)  # path contains "Nucleus" AND value contains "1H"
 ```
 """
-function search(n::NestedDict, terms::AbstractString...; regex::Bool=true, leaves_only::Bool=true)
+
+function search(n::NestedDict, terms::AbstractString...; regex::Bool=true, leaves_only::Bool=true, search_values::Bool=false)
     results = Pair{String,Any}[]
-    _search_recurse!(results, n, String[], terms, regex, leaves_only)
+    _search_recurse!(results, n, String[], terms, regex, leaves_only, search_values)
     return results
 end
 
 function _search_recurse!(results, node::NestedDict, path::Vector{String},
-                           terms, regex::Bool, leaves_only::Bool)
+                           terms, regex::Bool, leaves_only::Bool, search_values::Bool)
     # Search subtrees
     for (key, val) in getfield(node, :_subtrees)
         current_path = vcat(path, [key])
@@ -228,13 +236,20 @@ function _search_recurse!(results, node::NestedDict, path::Vector{String},
         if !leaves_only && _matches_all(full_path, terms, regex)
             push!(results, full_path => val)
         end
-        _search_recurse!(results, val, current_path, terms, regex, leaves_only)
+
+        _search_recurse!(results, val, current_path, terms, regex, leaves_only, search_values)
     end
     # Search leaves
     for (key, val) in getfield(node, :_leaves)
         current_path = vcat(path, [key])
         full_path = join(current_path, ".")
-        if _matches_all(full_path, terms, regex)
+
+        match_target = if search_values
+            full_path * " " * string(val)
+        else
+            full_path
+        end
+        if _matches_all(match_target, terms, regex)
             push!(results, full_path => val)
         end
     end

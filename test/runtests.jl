@@ -113,6 +113,33 @@ end
             @test results2[1].second == "1H"
         end
 
+        @testset "search with search_values" begin
+            d = NestedDict()
+            setpath!(d, ["MeasYaps", "sTXSPEC", "asNucleusInfo", "0", "tNucleus"], "1H")
+            setpath!(d, ["MeasYaps", "sTXSPEC", "asNucleusInfo", "1", "tNucleus"], "23Na")
+            setpath!(d, ["MeasYaps", "sKSpace", "lBaseResolution"], 256)
+
+            # Search by value only
+            results = search(d, "1H", search_values=true)
+            @test length(results) == 1
+            @test results[1].first == "MeasYaps.sTXSPEC.asNucleusInfo.0.tNucleus"
+            @test results[1].second == "1H"
+
+            # Search by value — no match without search_values
+            results_no_val = search(d, "1H")
+            @test length(results_no_val) == 0
+
+            # Search by numeric value
+            results_num = search(d, "256", search_values=true)
+            @test length(results_num) == 1
+            @test results_num[1].first == "MeasYaps.sKSpace.lBaseResolution"
+
+            # Combined path + value search
+            results_combo = search(d, "Nucleus", "23Na", search_values=true)
+            @test length(results_combo) == 1
+            @test results_combo[1].second == "23Na"
+        end
+
         @testset "leaves" begin
             d = NestedDict()
             setpath!(d, ["a", "b"], 1)

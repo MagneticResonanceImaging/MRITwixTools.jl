@@ -78,7 +78,7 @@ hdr.MeasYaps.sKSpace.lBaseResolution  # => 256.0
 # Path string access
 hdr["MeasYaps"]["sKSpace.lBaseResolution"]  # => 256.0
 
-# Search across all header sections
+# Search across all header sections (matches key paths)
 search(hdr, "lBaseRes")
 # => ["MeasYaps.sKSpace.lBaseResolution" => 256.0,
 #     "Phoenix.sKSpace.lBaseResolution" => 128.0]
@@ -86,6 +86,13 @@ search(hdr, "lBaseRes")
 # Search with multiple terms (AND logic)
 search(hdr, "sTXSPEC", "Nucleus")
 # => ["MeasYaps.sTXSPEC.asNucleusInfo.0.tNucleus" => "\"1H\""]
+
+# Search by value (also matches against leaf values)
+search(hdr, "1H", search_values=true)
+# => ["MeasYaps.sTXSPEC.asNucleusInfo.0.tNucleus" => "\"1H\""]
+
+# Combined: path contains "Nucleus" AND value contains "1H"
+search(hdr, "Nucleus", "1H", search_values=true)
 
 # List all leaf values
 leaves(hdr)
