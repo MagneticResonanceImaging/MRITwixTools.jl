@@ -8,13 +8,13 @@ A port of the Python packages [twixtools](https://github.com/pehses/twixtools) a
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/JakobAsslaender/MRITwixTools.jl")
+Pkg.add("MRITwixTools")
 ```
 
 Or in development mode:
 
 ```julia
-Pkg.develop(path="/path/to/MRITwixTools.jl")
+Pkg.develop("MRITwixTools")
 ```
 
 ## Quick Start

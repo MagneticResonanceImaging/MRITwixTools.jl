@@ -4,11 +4,11 @@
 
 - Julia 1.9 or later
 
-## From a Git Repository
+## From the Julia Registry
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/JakobAsslaender/MRITwixTools.jl")
+Pkg.add("MRITwixTools")
 ```
 
 ## Development Mode
@@ -17,7 +17,7 @@ For local development or contributing:
 
 ```julia
 using Pkg
-Pkg.develop(path="/path/to/MRITwixTools.jl")
+Pkg.develop("MRITwixTools")
 ```
 
 ## Dependencies

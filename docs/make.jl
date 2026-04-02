@@ -11,7 +11,7 @@ makedocs(
     remotes  = nothing,
     format   = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
-        repolink   = "https://github.com/JakobAsslaender/MRITwixTools.jl",
+        repolink   = "https://github.com/MagneticResonanceImaging/MRITwixTools.jl",
         edit_link  = nothing,
     ),
     pages = [
@@ -33,6 +33,6 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/JakobAsslaender/MRITwixTools.jl.git",
+    repo = "github.com/MagneticResonanceImaging/MRITwixTools.jl.git",
     devbranch = "main",
 )

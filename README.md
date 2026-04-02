@@ -13,12 +13,12 @@ Supports both VB and VD/VE/XA software versions.
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/JakobAsslaender/MRITwixTools.jl")
+Pkg.add("MRITwixTools")
 ```
 
 Or in development mode:
 ```julia
-Pkg.develop(path="/path/to/MRITwixTools.jl")
+Pkg.develop("MRITwixTools")
 ```
 
 ## Quick Start
@@ -151,8 +151,8 @@ This is a native Julia port of the Python [pymapVBVD](https://github.com/wtclark
 Released under the MIT License.
 
 [docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
-[docs-url]: https://JakobAsslaender.github.io/MRITwixTools.jl/stable
-[ci-img]: https://github.com/JakobAsslaender/MRITwixTools.jl/workflows/CI/badge.svg
-[ci-url]: https://github.com/JakobAsslaender/MRITwixTools.jl/actions
-[docs-ci-img]: https://github.com/JakobAsslaender/MRITwixTools.jl/workflows/Documentation/badge.svg
-[docs-ci-url]: https://github.com/JakobAsslaender/MRITwixTools.jl/actions
+[docs-url]: https://MagneticResonanceImaging.github.io/MRITwixTools.jl/stable
+[ci-img]: https://github.com/MagneticResonanceImaging/MRITwixTools.jl/workflows/CI/badge.svg
+[ci-url]: https://github.com/MagneticResonanceImaging/MRITwixTools.jl/actions
+[docs-ci-img]: https://github.com/MagneticResonanceImaging/MRITwixTools.jl/workflows/Documentation/badge.svg
+[docs-ci-url]: https://github.com/MagneticResonanceImaging/MRITwixTools.jl/actions

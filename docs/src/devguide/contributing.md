@@ -5,7 +5,7 @@
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/JakobAsslaender/MRITwixTools.jl.git
+git clone https://github.com/MagneticResonanceImaging/MRITwixTools.jl.git
 cd MRITwixTools.jl
 ```
 
