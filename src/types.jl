@@ -260,7 +260,7 @@ end
 """
     TwixObj
 
-Result object from `mapVBVD`. Contains header and scan data objects
+Result object from `read_twix`. Contains header and scan data objects
 accessible via attribute-style access (e.g., `obj.image`, `obj.hdr`).
 """
 mutable struct TwixObj

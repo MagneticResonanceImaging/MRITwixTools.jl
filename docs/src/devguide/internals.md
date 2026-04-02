@@ -5,33 +5,33 @@ These functions are not exported but may be useful for advanced usage or are doc
 ## MDH Parsing
 
 ```@docs
-MapVBVD.compute_dims!
-MapVBVD.readMDH!
-MapVBVD.tryAndFixLastMdh!
-MapVBVD.calcIndices
-MapVBVD.calcRange
-MapVBVD.readData
+MRITwixTools.compute_dims!
+MRITwixTools.readMDH!
+MRITwixTools.tryAndFixLastMdh!
+MRITwixTools.calcIndices
+MRITwixTools.calcRange
+MRITwixTools.readData
 ```
 
 ## Data Helpers
 
 ```@docs
-MapVBVD.fixLoopCounter!
-MapVBVD.average_dim
-MapVBVD.loop_counter
-MapVBVD.dim_extent
+MRITwixTools.fixLoopCounter!
+MRITwixTools.average_dim
+MRITwixTools.loop_counter
+MRITwixTools.dim_extent
 ```
 
 ## Header Parsing
 
 ```@docs
-MapVBVD.parse_ascconv
-MapVBVD.parse_xprot
-MapVBVD.parse_buffer
+MRITwixTools.parse_ascconv
+MRITwixTools.parse_xprot
+MRITwixTools.parse_buffer
 ```
 
 ## Utilities
 
 ```@docs
-MapVBVD.cumtrapz
+MRITwixTools.cumtrapz
 ```

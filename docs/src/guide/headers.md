@@ -1,11 +1,11 @@
 # Header Access
 
-Siemens twix files contain rich protocol headers with hundreds of parameters organized in a tree structure. MapVBVD.jl parses these into a [`NestedDict`](@ref) tree that supports **tab-completion at every level** in the Julia REPL.
+Siemens twix files contain rich protocol headers with hundreds of parameters organized in a tree structure. MRITwixTools.jl parses these into a [`NestedDict`](@ref) tree that supports **tab-completion at every level** in the Julia REPL.
 
 ## Accessing Header Values
 
 ```julia
-twixObj = mapVBVD("meas.dat")
+twixObj = read_twix("meas.dat")
 hdr = twixObj.hdr
 ```
 

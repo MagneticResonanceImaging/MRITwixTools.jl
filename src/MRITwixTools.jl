@@ -1,4 +1,4 @@
-module MapVBVD
+module MRITwixTools
 
 using FFTW
 using Interpolations
@@ -17,7 +17,7 @@ include("mdh.jl")
 
 
 # Public API
-export mapVBVD
+export read_twix
 export fullSize, dataSize, sqzSize, sqzDims, getdata, unsorted
 export MDH_flags
 export set_flagRemoveOS!, set_flagRampSampRegrid!, set_flagDoAverage!
@@ -30,7 +30,7 @@ export NestedDict, search, leaves, setpath!
 # ─── Main entry point ────────────────────────────────────────────────
 
 """
-    mapVBVD(filename; kwargs...) -> TwixObj or Vector{TwixObj}
+    read_twix(filename; kwargs...) -> TwixObj or Vector{TwixObj}
 
 Read a Siemens twix (.dat) file. Returns a `TwixObj` for single-raid files
 or a `Vector{TwixObj}` for multi-raid (VD+) files.
@@ -52,7 +52,7 @@ how data is processed when read via `getdata` / `unsorted`:
 - `disableReflect::Bool=false`: skip readout reflection correction
 - `ignoreROoffcenter::Bool=false`: ignore readout off-center shifts during regridding
 """
-function mapVBVD(filename::String;
+function read_twix(filename::String;
                  verbose::Bool           = true,
                  bReadHeader::Bool       = true,
                  bReadMDH::Bool          = true,

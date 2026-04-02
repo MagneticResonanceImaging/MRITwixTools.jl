@@ -1,13 +1,17 @@
+using Pkg
+Pkg.activate(Base.source_dir())
+Pkg.develop(PackageSpec(path=pwd()))
+Pkg.instantiate()
 using Documenter
-using MapVBVD
+using MRITwixTools
 
 makedocs(
-    sitename = "MapVBVD.jl",
-    modules  = [MapVBVD],
+    sitename = "MRITwixTools.jl",
+    modules  = [MRITwixTools],
     remotes  = nothing,
     format   = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
-        repolink   = "https://github.com/JakobAsslaender/MapVBVD.jl",
+        repolink   = "https://github.com/JakobAsslaender/MRITwixTools.jl",
         edit_link  = nothing,
     ),
     pages = [
@@ -29,6 +33,6 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/JakobAsslaender/MapVBVD.jl.git",
+    repo = "github.com/JakobAsslaender/MRITwixTools.jl.git",
     devbranch = "main",
 )

@@ -1,5 +1,5 @@
 using Test
-using MapVBVD
+using MRITwixTools
 using Downloads: Downloads
 using HDF5
 using SHA: sha256
@@ -63,7 +63,7 @@ end
 
 # ─── Unit tests (no data files needed) ─────────────────────────────────────
 
-@testset "MapVBVD.jl" begin
+@testset "MRITwixTools.jl" begin
 
     # ─── NestedDict tests ───────────────────────────────────────────
     @testset "NestedDict" begin
@@ -187,7 +187,7 @@ end
 
     # ─── TwixHdr tests ─────────────────────────────────────────────
     @testset "TwixHdr" begin
-        h = MapVBVD.TwixHdr()
+        h = MRITwixTools.TwixHdr()
         h.data["TestSection"] = NestedDict()
         setpath!(h.data["TestSection"], ["key1", "key2"], 3.14)
         @test h["TestSection"]["key1.key2"] == 3.14
@@ -204,7 +204,7 @@ end
 sKSpace.ucDimension = 0x4
 sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 """
-        result = MapVBVD.parse_ascconv(buffer)
+        result = MRITwixTools.parse_ascconv(buffer)
 
         # Now returns NestedDict with tree structure
         @test result.sKSpace.lBaseResolution == 256.0
@@ -221,7 +221,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         buffer = """<ParamLong."TestParam"> { 42 }
 <ParamString."TestStr"> { "hello" }
 <ParamDouble."TestDbl"> { <Precision> 6  3.14 }"""
-        result = MapVBVD.parse_xprot(buffer)
+        result = MRITwixTools.parse_xprot(buffer)
         @test result["TestParam"] == 42.0
         @test result["TestDbl"] == 3.14
     end
@@ -229,7 +229,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
     # ─── cumtrapz tests ──────────────────────────────────────────
     @testset "cumtrapz" begin
         y = [1.0, 2.0, 3.0, 4.0]
-        result = MapVBVD.cumtrapz(y)
+        result = MRITwixTools.cumtrapz(y)
         @test length(result) == 4
         @test result[1] == 0.0
         @test result[2] ≈ 1.5
@@ -239,35 +239,35 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     # ─── RawData construction tests ─────────────────────────────
     @testset "RawData construction" begin
-        obj = MapVBVD.RawData("image", "test.dat", :vd)
+        obj = MRITwixTools.RawData("image", "test.dat", :vd)
         @test obj.dType == "image"
         @test obj.version === :vd
         @test obj.readinfo.szScanHeader == 192
         @test obj.readinfo.szChannelHeader == 32
 
-        obj_vb = MapVBVD.RawData("noise", "test.dat", :vb)
+        obj_vb = MRITwixTools.RawData("noise", "test.dat", :vb)
         @test obj_vb.readinfo.szScanHeader == 0
         @test obj_vb.readinfo.szChannelHeader == 128
     end
 
     # ─── Bit operations tests ─────────────────────────────────────
     @testset "Bit operations" begin
-        @test MapVBVD.get_bit(0x05, 0) == 1
-        @test MapVBVD.get_bit(0x05, 1) == 0
-        @test MapVBVD.get_bit(0x05, 2) == 1
+        @test MRITwixTools.get_bit(0x05, 0) == 1
+        @test MRITwixTools.get_bit(0x05, 1) == 0
+        @test MRITwixTools.get_bit(0x05, 2) == 1
 
-        @test MapVBVD.set_bit(0x00, 2, true) == 0x04
-        @test MapVBVD.set_bit(0x07, 1, false) == 0x05
+        @test MRITwixTools.set_bit(0x00, 2, true) == 0x04
+        @test MRITwixTools.set_bit(0x07, 1, false) == 0x05
     end
 
     # ─── TwixObj tests ────────────────────────────────────────────
     @testset "TwixObj" begin
-        t = MapVBVD.TwixObj()
-        t["hdr"] = MapVBVD.TwixHdr()
-        t["image"] = MapVBVD.RawData("image", "test.dat", :vd)
+        t = MRITwixTools.TwixObj()
+        t["hdr"] = MRITwixTools.TwixHdr()
+        t["image"] = MRITwixTools.RawData("image", "test.dat", :vd)
         @test haskey(t, "hdr")
         @test haskey(t, "image")
-        @test t.image isa MapVBVD.RawData
+        @test t.image isa MRITwixTools.RawData
         flags = MDH_flags(t)
         @test "image" in flags
         @test !("hdr" in flags)
@@ -275,7 +275,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     # ─── Flag setters tests ──────────────────────────────────────
     @testset "Flag setters" begin
-        obj = MapVBVD.RawData("image", "test.dat", :vd)
+        obj = MRITwixTools.RawData("image", "test.dat", :vd)
         obj.flagRemoveOS = false
         @test obj.removeOS == false
         obj.flagRemoveOS = true
@@ -306,25 +306,25 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     # ─── RawData defaults tests ─────────────────────────────────
     @testset "RawData defaults" begin
-        s = MapVBVD.RawData("image", "test.dat", :vd)
+        s = MRITwixTools.RawData("image", "test.dat", :vd)
         @test s.removeOS == false
         @test s.regrid == false
         @test s.squeeze == false
         @test s.doAverage == false
         @test s.skipToFirstLine == false  # image defaults to false
 
-        s2 = MapVBVD.RawData("refscan", "test.dat", :vd)
+        s2 = MRITwixTools.RawData("refscan", "test.dat", :vd)
         @test s2.skipToFirstLine == true  # non-image defaults to true
     end
 
     # ─── MDH constants tests ─────────────────────────────────────
     @testset "MDH constants" begin
-        @test MapVBVD.MDH_SIZE_VB == 128
-        @test MapVBVD.MDH_SIZE_VD == 184
-        @test MapVBVD.N_DIMS == 16
-        @test length(MapVBVD.DIM_NAMES) == 16
-        @test MapVBVD.DIM_NAMES[MapVBVD.DIM_COL] == "Col"
-        @test MapVBVD.DIM_NAMES[MapVBVD.DIM_IDE] == "Ide"
+        @test MRITwixTools.MDH_SIZE_VB == 128
+        @test MRITwixTools.MDH_SIZE_VD == 184
+        @test MRITwixTools.N_DIMS == 16
+        @test length(MRITwixTools.DIM_NAMES) == 16
+        @test MRITwixTools.DIM_NAMES[MRITwixTools.DIM_COL] == "Col"
+        @test MRITwixTools.DIM_NAMES[MRITwixTools.DIM_IDE] == "Ide"
     end
 
 
@@ -332,9 +332,9 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "VB SVS read" begin
         path = get_test_file("meas_MID311_STEAM_wref1_FID115674.dat")
-        twixObj = mapVBVD(path, verbose=false)
+        twixObj = read_twix(path, verbose=false)
 
-        @test twixObj isa MapVBVD.TwixObj
+        @test twixObj isa MRITwixTools.TwixObj
         @test haskey(twixObj._data, "image")
         @test haskey(twixObj._data, "hdr")
 
@@ -356,7 +356,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "VE SVS read" begin
         path = get_test_file("meas_MID00305_FID74175_VOI_slaser_wref1.dat")
-        twixObj = mapVBVD(path, verbose=false)
+        twixObj = read_twix(path, verbose=false)
 
         @test twixObj isa Vector
         @test length(twixObj) == 2
@@ -371,9 +371,9 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "VB broken file read" begin
         path = get_test_file("meas_MID111_sLaser_broken_FID4873.dat")
-        twixObj = @test_warn r"Unexpected read error" mapVBVD(path, verbose=false)
+        twixObj = @test_warn r"Unexpected read error" read_twix(path, verbose=false)
 
-        @test twixObj isa MapVBVD.TwixObj
+        @test twixObj isa MRITwixTools.TwixObj
         @test haskey(twixObj._data, "image")
 
         @test fullSize(twixObj.image) == [4096, 32, 1, 1, 1, 1, 1, 1, 1, 97, 1, 1, 1, 1, 1, 1]
@@ -385,7 +385,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "GRE flags (flagRemoveOS)" begin
         path = get_test_file("meas_MID00255_FID12798_GRE_surf.dat")
-        twixObj = mapVBVD(path, verbose=false)
+        twixObj = read_twix(path, verbose=false)
 
         twixObj[2].image.flagRemoveOS = false
         @test dataSize(twixObj[2].image) == [256, 16, 128, 1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -395,7 +395,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "VB broken flagRemoveOS" begin
         path = get_test_file("meas_MID111_sLaser_broken_FID4873.dat")
-        twixObj = @test_warn r"Unexpected read error" mapVBVD(path, verbose=false)
+        twixObj = @test_warn r"Unexpected read error" read_twix(path, verbose=false)
 
         twixObj.image.flagRemoveOS = false
         @test dataSize(twixObj.image) == [4096, 32, 1, 1, 1, 1, 1, 1, 1, 97, 1, 1, 1, 1, 1, 1]
@@ -405,7 +405,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "EPI flags (flagIgnoreSeg, flagDoAverage)" begin
         path = get_test_file("meas_MID00265_FID12808_FMRI.dat")
-        twixObj = mapVBVD(path, verbose=false)
+        twixObj = read_twix(path, verbose=false)
 
         twixObj[2].refscanPC.flagIgnoreSeg = false
         twixObj[2].refscanPC.flagDoAverage = false
@@ -422,7 +422,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "EPI flagSkipToFirstLine" begin
         path = get_test_file("meas_MID00265_FID12808_FMRI.dat")
-        twixObj = mapVBVD(path, verbose=false)
+        twixObj = read_twix(path, verbose=false)
 
         twixObj[2].refscan.flagSkipToFirstLine = false
         @test dataSize(twixObj[2].refscan) == [220, 16, 82, 1, 5, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
@@ -436,7 +436,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         dat_path = get_test_file("meas_MID00255_FID12798_GRE_surf.dat")
         mat_path = get_test_file("meas_MID00255_FID12798_GRE_surf.mat")
 
-        twixObj = mapVBVD(dat_path, verbose=false)
+        twixObj = read_twix(dat_path, verbose=false)
         twixObj[2].image.squeeze = true
 
         # Without OS removal

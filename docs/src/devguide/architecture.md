@@ -1,12 +1,12 @@
 # Architecture
 
-This page documents the internal design of MapVBVD.jl for contributors and maintainers.
+This page documents the internal design of MRITwixTools.jl for contributors and maintainers.
 
 ## File Structure
 
 ```
 src/
-├── MapVBVD.jl            # Module definition, exports, mapVBVD() entry point
+├── MRITwixTools.jl       # Module definition, exports, read_twix() entry point
 ├── nested_dict.jl        # NestedDict — tree-structured dict with tab-completion
 ├── mdh_constants.jl      # Named constants for MDH binary layout
 ├── types.jl              # Struct definitions (RawData, TwixObj, MDH, TwixHdr, etc.)
@@ -23,12 +23,12 @@ Include order matters — types must be defined before they're used in method si
 nested_dict.jl → mdh_constants.jl → types.jl → read_twix_hdr.jl → twix_map_obj.jl → mdh.jl
 ```
 
-The `mapVBVD()` entry point lives in `MapVBVD.jl` after all includes, since it depends on everything.
+The `read_twix()` entry point lives in `MRITwixTools.jl` after all includes, since it depends on everything.
 
 ## Type Hierarchy
 
 ```
-mapVBVD() → TwixObj
+read_twix() → TwixObj
   ├── "hdr" → TwixHdr (NestedDict wrapper)
   │     └── sections as NestedDict trees: hdr.MeasYaps.sKSpace.lBaseResolution → 256
   └── "image" → RawData
@@ -68,7 +68,7 @@ Processing flags (`removeOS`, `regrid`, `doAverage`, etc.) are direct `Bool` fie
 
 Defaults are defined in two places only:
 - **`RawData` constructor** — keyword arguments, all `false`
-- **`mapVBVD` function** — keyword arguments forwarded to `RawData`
+- **`read_twix` function** — keyword arguments forwarded to `RawData`
 
 ### 2. Immutable AcquisitionMeta
 
@@ -109,7 +109,7 @@ For details on the NestedDict split-storage design and how REPL tab-completion w
 ## Data Flow
 
 ```
-mapVBVD(filename)
+read_twix(filename)
   ├── read_twix_hdr(fid, prot)          # Parse header sections into NestedDict trees
   │     ├── parse_buffer(buffer)         # Splits ASCCONV and XProtocol
   │     │     ├── parse_ascconv(buf)     # Dotted paths → NestedDict via setpath!

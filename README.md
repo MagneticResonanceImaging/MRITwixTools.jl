@@ -1,4 +1,4 @@
-# MapVBVD.jl
+# MRITwixTools.jl
 
 | **Documentation** | **Build Status** |
 |:------------------|:-----------------|
@@ -13,21 +13,21 @@ Supports both VB and VD/VE/XA software versions.
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/JakobAsslaender/MapVBVD.jl")
+Pkg.add(url="https://github.com/JakobAsslaender/MRITwixTools.jl")
 ```
 
 Or in development mode:
 ```julia
-Pkg.develop(path="/path/to/MapVBVD.jl")
+Pkg.develop(path="/path/to/MRITwixTools.jl")
 ```
 
 ## Quick Start
 
 ```julia
-using MapVBVD
+using MRITwixTools
 
 # Read a twix file (returns raw data by default — no processing)
-twixObj = mapVBVD("meas_MID00305.dat")
+twixObj = read_twix("meas_MID00305.dat")
 
 # For multi-raid files (VD/VE/XA), twixObj is a Vector{TwixObj}
 # For single-raid files (VB), it is a single TwixObj
@@ -44,11 +44,11 @@ MDH_flags(twixObj)  # e.g. ["image", "noise", "refscan"]
 
 ## Processing Options
 
-By default, `mapVBVD` returns raw data with no processing. Enable processing either at load time or afterwards:
+By default, `read_twix` returns raw data with no processing. Enable processing either at load time or afterwards:
 
 ```julia
 # At load time
-twixObj = mapVBVD("meas.dat", removeOS=true, squeeze=true)
+twixObj = read_twix("meas.dat", removeOS=true, squeeze=true)
 
 # Or afterwards
 twixObj.image.removeOS = true
@@ -113,7 +113,7 @@ Several tools exist for reading Siemens twix (`.dat`) files:
 
 ### Defaults
 
-| | mapVBVD (MATLAB) | pymapVBVD (Python) | twixtools (Python) | MapVBVD.jl |
+| | mapVBVD (MATLAB) | pymapVBVD (Python) | twixtools (Python) | MRITwixTools.jl |
 |:---|:---:|:---:|:---:|:---:|
 | Indexing | 1-based | 0-based | 0-based | 1-based |
 | `removeOS` | `false` | `True` | `False` | `false` |
@@ -121,7 +121,7 @@ Several tools exist for reading Siemens twix (`.dat`) files:
 
 ### Syntax
 
-| | mapVBVD | pymapVBVD | twixtools | MapVBVD.jl |
+| | mapVBVD | pymapVBVD | twixtools | MRITwixTools.jl |
 |:---|:---|:---|:---|:---|
 | Read data | `twix.image()` | `twix.image['']` | loop over `mdb` list | `getdata(twix.image)` |
 | Slice data | `twix.image(:,:,1)` | `twix.image[:,:,0]` | — | `twix.image[:,:,1]` |
@@ -132,7 +132,7 @@ Several tools exist for reading Siemens twix (`.dat`) files:
 
 ### Feature Support
 
-| | mapVBVD | pymapVBVD | twixtools | MapVBVD.jl |
+| | mapVBVD | pymapVBVD | twixtools | MRITwixTools.jl |
 |:---|:---:|:---:|:---:|:---:|
 | Write support | — | — | ✓ | — |
 | Low-level mdb access | — | — | ✓ | — |
@@ -151,8 +151,8 @@ This is a native Julia port of the Python [pymapVBVD](https://github.com/wtclark
 Released under the MIT License.
 
 [docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
-[docs-url]: https://JakobAsslaender.github.io/MapVBVD.jl/stable
-[ci-img]: https://github.com/JakobAsslaender/MapVBVD.jl/workflows/CI/badge.svg
-[ci-url]: https://github.com/JakobAsslaender/MapVBVD.jl/actions
-[docs-ci-img]: https://github.com/JakobAsslaender/MapVBVD.jl/workflows/Documentation/badge.svg
-[docs-ci-url]: https://github.com/JakobAsslaender/MapVBVD.jl/actions
+[docs-url]: https://JakobAsslaender.github.io/MRITwixTools.jl/stable
+[ci-img]: https://github.com/JakobAsslaender/MRITwixTools.jl/workflows/CI/badge.svg
+[ci-url]: https://github.com/JakobAsslaender/MRITwixTools.jl/actions
+[docs-ci-img]: https://github.com/JakobAsslaender/MRITwixTools.jl/workflows/Documentation/badge.svg
+[docs-ci-url]: https://github.com/JakobAsslaender/MRITwixTools.jl/actions

@@ -5,8 +5,8 @@
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/JakobAsslaender/MapVBVD.jl.git
-cd MapVBVD.jl
+git clone https://github.com/JakobAsslaender/MRITwixTools.jl.git
+cd MRITwixTools.jl
 ```
 
 2. Start Julia and activate the project:
@@ -20,7 +20,7 @@ Pkg.instantiate()
 3. Run the tests:
 
 ```julia
-Pkg.test("MapVBVD")
+Pkg.test("MRITwixTools")
 ```
 
 ## Running Tests

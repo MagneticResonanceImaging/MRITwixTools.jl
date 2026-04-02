@@ -1,6 +1,6 @@
 # Tab-Completion Internals
 
-This page explains how MapVBVD.jl achieves deep REPL tab-completion through the entire header tree. This is a developer-facing design document — for user-facing header usage, see [Header Access](../guide/headers.md).
+This page explains how MRITwixTools.jl achieves deep REPL tab-completion through the entire header tree. This is a developer-facing design document — for user-facing header usage, see [Header Access](../guide/headers.md).
 
 ## The Problem
 
@@ -19,7 +19,7 @@ Base.getproperty(h::SimpleHeader, name::Symbol) = getfield(h, :data)[String(name
 
 ## The Solution: Split Storage in NestedDict
 
-MapVBVD.jl splits internal storage into two typed dictionaries:
+MRITwixTools.jl splits internal storage into two typed dictionaries:
 
 ```julia
 struct NestedDict
@@ -82,7 +82,7 @@ See the [Architecture](architecture.md) page for more details on this rule.
 
 ## Why Not PropertyDicts.jl?
 
-`PropertyDicts.jl` is the closest existing Julia package, but it returns `Any` from `getproperty`, which breaks REPL inference. If Julia's REPL ever gains evaluation-based completion (instead of inference-based), `PropertyDicts.jl` + a search function would suffice and MapVBVD.jl's split-storage approach could be simplified.
+`PropertyDicts.jl` is the closest existing Julia package, but it returns `Any` from `getproperty`, which breaks REPL inference. If Julia's REPL ever gains evaluation-based completion (instead of inference-based), `PropertyDicts.jl` + a search function would suffice and MRITwixTools.jl's split-storage approach could be simplified.
 
 ## Numeric String Keys
 

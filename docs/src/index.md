@@ -1,4 +1,4 @@
-# MapVBVD.jl
+# MRITwixTools.jl
 
 Native Julia package for reading Siemens MRI raw data (twix `.dat` files).
 
@@ -8,22 +8,22 @@ A port of the Python packages [twixtools](https://github.com/pehses/twixtools) a
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/JakobAsslaender/MapVBVD.jl")
+Pkg.add(url="https://github.com/JakobAsslaender/MRITwixTools.jl")
 ```
 
 Or in development mode:
 
 ```julia
-Pkg.develop(path="/path/to/MapVBVD.jl")
+Pkg.develop(path="/path/to/MRITwixTools.jl")
 ```
 
 ## Quick Start
 
 ```julia
-using MapVBVD
+using MRITwixTools
 
 # Read a twix file (returns raw data by default — no processing)
-twixObj = mapVBVD("meas_MID00305.dat")
+twixObj = read_twix("meas_MID00305.dat")
 
 # For multi-raid files (VD/VE/XA), twixObj is a Vector{TwixObj}
 # For single-raid files (VB), it is a single TwixObj
@@ -48,7 +48,7 @@ Several tools exist for reading Siemens twix (`.dat`) files:
 
 ### Defaults
 
-| | mapVBVD (MATLAB) | pymapVBVD (Python) | twixtools (Python) | MapVBVD.jl |
+| | mapVBVD (MATLAB) | pymapVBVD (Python) | twixtools (Python) | MRITwixTools.jl |
 |:---|:---:|:---:|:---:|:---:|
 | Indexing | 1-based | 0-based | 0-based | 1-based |
 | `removeOS` | `false` | `True` | `False` | `false` |
@@ -56,7 +56,7 @@ Several tools exist for reading Siemens twix (`.dat`) files:
 
 ### Syntax
 
-| | mapVBVD | pymapVBVD | twixtools | MapVBVD.jl |
+| | mapVBVD | pymapVBVD | twixtools | MRITwixTools.jl |
 |:---|:---|:---|:---|:---|
 | Read data | `twix.image()` | `twix.image['']` | loop over `mdb` list | `getdata(twix.image)` |
 | Slice data | `twix.image(:,:,1)` | `twix.image[:,:,0]` | — | `twix.image[:,:,1]` |
@@ -67,7 +67,7 @@ Several tools exist for reading Siemens twix (`.dat`) files:
 
 ### Feature Support
 
-| | mapVBVD | pymapVBVD | twixtools | MapVBVD.jl |
+| | mapVBVD | pymapVBVD | twixtools | MRITwixTools.jl |
 |:---|:---:|:---:|:---:|:---:|
 | Tab completion | first level | first level | first level | every level |
 | Write support | — | — | ✓ | — |
@@ -77,7 +77,7 @@ Several tools exist for reading Siemens twix (`.dat`) files:
 ## Package Overview
 
 ```
-mapVBVD("file.dat")
+read_twix("file.dat")
   │
   ├── TwixObj
   │     ├── .hdr     → TwixHdr (nested header tree with tab-completion)

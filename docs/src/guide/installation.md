@@ -8,7 +8,7 @@
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/JakobAsslaender/MapVBVD.jl")
+Pkg.add(url="https://github.com/JakobAsslaender/MRITwixTools.jl")
 ```
 
 ## Development Mode
@@ -17,12 +17,12 @@ For local development or contributing:
 
 ```julia
 using Pkg
-Pkg.develop(path="/path/to/MapVBVD.jl")
+Pkg.develop(path="/path/to/MRITwixTools.jl")
 ```
 
 ## Dependencies
 
-MapVBVD.jl depends on:
+MRITwixTools.jl depends on:
 
 | Package | Purpose |
 |---------|---------|

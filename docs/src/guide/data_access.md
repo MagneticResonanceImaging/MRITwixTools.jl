@@ -5,7 +5,7 @@
 After loading a twix file, access scan data through the `RawData` objects stored on the `TwixObj`:
 
 ```julia
-twixObj = mapVBVD("meas.dat")
+twixObj = read_twix("meas.dat")
 
 # Full data read
 data = getdata(twixObj.image)
@@ -119,11 +119,11 @@ data = twixObj.image[1:128, :, :, :]  # Col=1:128, Cha=all, Lin=all, Sli=all
 
 ## Processing Flags
 
-All processing flags default to `false` — MapVBVD.jl returns raw, unprocessed data by default. Enable processing either at load time or afterwards:
+All processing flags default to `false` — MRITwixTools.jl returns raw, unprocessed data by default. Enable processing either at load time or afterwards:
 
 ```julia
 # At load time
-twixObj = mapVBVD("meas.dat", removeOS=true, squeeze=true)
+twixObj = read_twix("meas.dat", removeOS=true, squeeze=true)
 
 # Or afterwards (triggers recomputation on next data read)
 twixObj.image.removeOS = true
