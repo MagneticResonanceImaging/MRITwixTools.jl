@@ -537,7 +537,7 @@ function readData(s::RawData, mem::AbstractVector{Int64};
     raw_complex = Vector{ComplexF32}(undef, n_complex)
     raw_complex_mat = reshape(raw_complex, readShape[1], readShape[2])
 
-    p = Progress(kMax, desc="read data ", enabled=true)
+    p = Progress(kMax, desc="read data ", enabled=s.verbose)
 
     for k in 1:kMax
         seek(fid, mem[k] + szScanHeader)

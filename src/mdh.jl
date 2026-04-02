@@ -31,16 +31,17 @@ struct EOFError <: Exception end
 # ─── MDH loop reader ─────────────────────────────────────────────────
 
 """
-    loop_mdh_read(fid, version, Nscans, scan, measOffset, measLength; print_prog=true)
+    loop_mdh_read(fid, version, Nscans, scan, measLength; verbose=true)
 
 Read all MDHs (measurement data headers) from the twix file.
 Returns (mdh_blob, filePos, isEOF).
 """
 function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
-                       measOffset::UInt64, measLength::UInt64;
-                       print_prog::Bool=true)
+                       measLength::UInt64;
+                       verbose::Bool=true)
     isVD = version === :vd
     byteMDH = isVD ? MDH_SIZE_VD : MDH_SIZE_VB
+    measLen = Int(measLength)  # convert once; everything else is Int
 
     if !(version === :vb || version === :vd)
         @warn "Software version :$version is not supported (expected :vb or :vd)."
@@ -66,8 +67,8 @@ function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
     dmaOff = isVD ? VD_SCAN_HEADER_SIZE : 0
     dmaSkip = isVD ? VD_CHANNEL_HEADER_SIZE : byteMDH
 
-    if print_prog
-        p = Progress(Int(measLength), desc=@sprintf("Scan %d/%d, read all mdhs ", scan + 1, Nscans),
+    if verbose
+        p = Progress(measLen, desc=@sprintf("Scan %d/%d, read all mdhs ", scan + 1, Nscans),
                      showspeed=true, enabled=true)
         p_finished = false
     end
@@ -77,7 +78,7 @@ function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
 
     while true
         try
-            skip(fid, Int(ulDMALength) + mdhStart)
+            skip(fid, ulDMALength + mdhStart)
             actual = readbytes!(fid, data_u8, -mdhStart)
             if actual < -mdhStart
                 throw(EOFError())
@@ -95,8 +96,7 @@ function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
 
         if (data_u8[1:3] == u8_000) || (bitMask & BYTE_BIT_0 != 0)
             data_u8[4] = UInt8(get_bit(data_u8[4], 0))
-            tmp = reinterpret(UInt32, data_u8[1:4])[1]
-            ulDMALength = Int(tmp)
+            ulDMALength = Int(reinterpret(UInt32, data_u8[1:4])[1])
 
             if ulDMALength == 0 || (bitMask & BYTE_BIT_0 != 0)
                 cPos += ulDMALength
@@ -109,15 +109,14 @@ function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
 
         if bitMask & BYTE_BIT_5 != 0  # MDH_SYNCDATA
             data_u8[4] = UInt8(get_bit(data_u8[4], 0))
-            tmp = reinterpret(UInt32, data_u8[1:4])[1]
-            ulDMALength = Int(tmp)
+            ulDMALength = Int(reinterpret(UInt32, data_u8[1:4])[1])
             cPos += ulDMALength
             continue
         end
 
         # Correct DMA length using NCol and NCha
         NCol_NCha = reinterpret(UInt16, data_u8[dmaIdx])
-        ulDMALength = dmaOff + (8 * Int(NCol_NCha[1]) + dmaSkip) * Int(NCol_NCha[2])
+        ulDMALength = dmaOff + (8 * Int(NCol_NCha[1]) + dmaSkip) * Int(NCol_NCha[2])  # Int() to avoid UInt16 overflow
 
         n_acq += 1
 
@@ -134,17 +133,17 @@ function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
         end
 
         mdh_blob[:, n_acq] = data_u8
-        filePos[n_acq] = Int64(cPos)
+        filePos[n_acq] = cPos
 
-        if print_prog && !p_finished
-            curr_val = Int(min(cPos, measLength))
+        if verbose && !p_finished
+            curr_val = min(cPos, measLen)
             ProgressMeter.update!(p, curr_val)
-            if curr_val >= Int(measLength)
+            if curr_val >= measLen
                 p_finished = true
             end
         end
 
-        cPos += Int(ulDMALength)
+        cPos += ulDMALength
     end
 
     if isEOF
@@ -153,19 +152,19 @@ function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
 
     if n_acq < length(filePos)
         if n_acq + 1 <= length(filePos)
-            filePos[n_acq + 1] = Int64(cPos)
+            filePos[n_acq + 1] = cPos
         else
-            push!(filePos, Int64(cPos))
+            push!(filePos, cPos)
         end
     else
-        push!(filePos, Int64(cPos))
+        push!(filePos, cPos)
     end
 
     # Discard overallocation
     mdh_blob = mdh_blob[:, 1:n_acq]
     filePos = filePos[1:n_acq]
 
-    if print_prog
+    if verbose
         finish!(p)
     end
 

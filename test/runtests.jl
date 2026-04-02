@@ -332,7 +332,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "VB SVS read" begin
         path = get_test_file("meas_MID311_STEAM_wref1_FID115674.dat")
-        twixObj = mapVBVD(path, quiet=true)
+        twixObj = mapVBVD(path, verbose=false)
 
         @test twixObj isa MapVBVD.TwixObj
         @test haskey(twixObj._data, "image")
@@ -356,7 +356,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "VE SVS read" begin
         path = get_test_file("meas_MID00305_FID74175_VOI_slaser_wref1.dat")
-        twixObj = mapVBVD(path, quiet=true)
+        twixObj = mapVBVD(path, verbose=false)
 
         @test twixObj isa Vector
         @test length(twixObj) == 2
@@ -371,7 +371,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "VB broken file read" begin
         path = get_test_file("meas_MID111_sLaser_broken_FID4873.dat")
-        twixObj = @test_warn r"Unexpected read error" mapVBVD(path, quiet=true)
+        twixObj = @test_warn r"Unexpected read error" mapVBVD(path, verbose=false)
 
         @test twixObj isa MapVBVD.TwixObj
         @test haskey(twixObj._data, "image")
@@ -385,7 +385,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "GRE flags (flagRemoveOS)" begin
         path = get_test_file("meas_MID00255_FID12798_GRE_surf.dat")
-        twixObj = mapVBVD(path, quiet=true)
+        twixObj = mapVBVD(path, verbose=false)
 
         twixObj[2].image.flagRemoveOS = false
         @test dataSize(twixObj[2].image) == [256, 16, 128, 1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -395,7 +395,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "VB broken flagRemoveOS" begin
         path = get_test_file("meas_MID111_sLaser_broken_FID4873.dat")
-        twixObj = @test_warn r"Unexpected read error" mapVBVD(path, quiet=true)
+        twixObj = @test_warn r"Unexpected read error" mapVBVD(path, verbose=false)
 
         twixObj.image.flagRemoveOS = false
         @test dataSize(twixObj.image) == [4096, 32, 1, 1, 1, 1, 1, 1, 1, 97, 1, 1, 1, 1, 1, 1]
@@ -405,7 +405,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "EPI flags (flagIgnoreSeg, flagDoAverage)" begin
         path = get_test_file("meas_MID00265_FID12808_FMRI.dat")
-        twixObj = mapVBVD(path, quiet=true)
+        twixObj = mapVBVD(path, verbose=false)
 
         twixObj[2].refscanPC.flagIgnoreSeg = false
         twixObj[2].refscanPC.flagDoAverage = false
@@ -422,7 +422,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
     @testset "EPI flagSkipToFirstLine" begin
         path = get_test_file("meas_MID00265_FID12808_FMRI.dat")
-        twixObj = mapVBVD(path, quiet=true)
+        twixObj = mapVBVD(path, verbose=false)
 
         twixObj[2].refscan.flagSkipToFirstLine = false
         @test dataSize(twixObj[2].refscan) == [220, 16, 82, 1, 5, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
@@ -436,7 +436,7 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         dat_path = get_test_file("meas_MID00255_FID12798_GRE_surf.dat")
         mat_path = get_test_file("meas_MID00255_FID12798_GRE_surf.mat")
 
-        twixObj = mapVBVD(dat_path, quiet=true)
+        twixObj = mapVBVD(dat_path, verbose=false)
         twixObj[2].image.squeeze = true
 
         # Without OS removal

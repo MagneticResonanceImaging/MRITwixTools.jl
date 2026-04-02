@@ -192,6 +192,9 @@ mutable struct RawData
     skipToFirstLine::Bool
     ignoreROoffcenter::Bool
 
+    # Output control
+    verbose::Bool
+
     # State (populated during read)
     meta::Union{Nothing,AcquisitionMeta}
     dims::Union{Nothing,DimSizes}
@@ -214,7 +217,8 @@ function RawData(dataType::String, fname::String, version::Symbol,
                   squeeze::Bool           = false,
                   disableReflect::Bool    = false,
                   skipToFirstLine::Union{Bool,Nothing} = nothing,
-                  ignoreROoffcenter::Bool = false)
+                  ignoreROoffcenter::Bool = false,
+                  verbose::Bool           = true)
     dType = lowercase(dataType)
 
     # Can't regrid without a trajectory
@@ -233,6 +237,7 @@ function RawData(dataType::String, fname::String, version::Symbol,
              removeOS, regrid, doAverage, averageReps, averageSets,
              ignoreSeg, squeeze, disableReflect, skipToFirstLine,
              ignoreROoffcenter,
+             verbose,
              nothing, nothing, false)
 end
 

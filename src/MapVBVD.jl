@@ -36,7 +36,7 @@ Read a Siemens twix (.dat) file. Returns a `TwixObj` for single-raid files
 or a `Vector{TwixObj}` for multi-raid (VD+) files.
 
 # Keyword Arguments
-- `quiet::Bool=false`: suppress progress output
+- `verbose::Bool=true`: show progress bars during reading and data retrieval
 - `bReadHeader::Bool=true`: whether to read the header
 - `bReadMDH::Bool=true`: whether to read MDH data
 
@@ -53,7 +53,7 @@ how data is processed when read via `getdata` / `unsorted`:
 - `ignoreROoffcenter::Bool=false`: ignore readout off-center shifts during regridding
 """
 function mapVBVD(filename::String;
-                 quiet::Bool             = false,
+                 verbose::Bool           = true,
                  bReadHeader::Bool       = true,
                  bReadMDH::Bool          = true,
                  removeOS::Bool          = false,
@@ -113,11 +113,9 @@ function mapVBVD(filename::String;
 
         if bReadMDH
             make_scan(dtype) = RawData(dtype, filename, version, rstraj;
-                                        removeOS=removeOS, regrid=regrid,
-                                        doAverage=doAverage, averageReps=averageReps,
-                                        averageSets=averageSets, ignoreSeg=ignoreSeg,
-                                        squeeze=squeeze, disableReflect=disableReflect,
-                                        ignoreROoffcenter=ignoreROoffcenter)
+                                        removeOS, regrid, doAverage, averageReps,
+                                        averageSets, ignoreSeg, squeeze, disableReflect,
+                                        ignoreROoffcenter, verbose)
 
             for stype in SCAN_TYPES
                 currTwixObj[stype] = make_scan(stype)
@@ -127,9 +125,7 @@ function mapVBVD(filename::String;
             cPos += hdr_len
             seek(fid, cPos)
 
-            mdh_blob, filePos, isEOF = loop_mdh_read(fid, version, NScans, s - 1,
-                                                      measOffset[s], measLength[s],
-                                                      print_prog=!quiet)
+            mdh_blob, filePos, isEOF = loop_mdh_read(fid, version, NScans, s - 1, measLength[s]; verbose)
 
             mdh, mask = evalMDH(mdh_blob, version)
 
