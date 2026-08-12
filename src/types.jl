@@ -276,9 +276,11 @@ Base.keys(t::TwixObj) = keys(getfield(t, :_data))
 Base.delete!(t::TwixObj, key::String) = delete!(getfield(t, :_data), key)
 Base.pop!(t::TwixObj, key::String, default=nothing) = pop!(getfield(t, :_data), key, default)
 
-# Type-annotated helper: narrows return to Union{TwixHdr,RawData}
-# so the REPL can infer propertynames for chained tab-completion.
-_twixobj_val(t::TwixObj, key::String)::Union{TwixHdr, RawData} = getfield(t, :_data)[key]
+# Type-annotated helper: narrows return to Union{TwixHdr,RawData,Vector{Vector{UInt8}}}
+# so the REPL can infer propertynames for chained tab-completion. The third arm
+# of the union is used for the optional "syncdata" entry, which holds raw
+# payload bytes of MDH_SYNCDATA packets (sequence-specific binary blobs).
+_twixobj_val(t::TwixObj, key::String)::Union{TwixHdr, RawData, Vector{Vector{UInt8}}} = getfield(t, :_data)[key]
 
 function Base.getproperty(t::TwixObj, name::Symbol)
     name === :_data && return getfield(t, :_data)
@@ -323,6 +325,9 @@ function Base.show(io::IO, ::MIME"text/plain", t::TwixObj)
             println(io, "  📊 ", k, " (", v.meta.NAcq, " acq, size ", sqzSize(v), ")")
         elseif v isa RawData
             println(io, "  📊 ", k, " [no data]")
+        elseif v isa Vector{<:AbstractVector{UInt8}}
+            total = sum(length, v; init=0)
+            println(io, "  🧬 ", k, " (", length(v), " packet(s), ", total, " bytes)")
         else
             println(io, "  ", k)
         end

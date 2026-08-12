@@ -80,11 +80,13 @@ Several tools exist for reading Siemens twix (`.dat`) files:
 read_twix("file.dat")
   │
   ├── TwixObj
-  │     ├── .hdr     → TwixHdr (nested header tree with tab-completion)
-  │     ├── .image   → RawData (image acquisitions)
-  │     ├── .noise   → RawData (noise adjustments)
-  │     ├── .refscan → RawData (GRAPPA reference lines)
-  │     └── ...      → RawData (other scan types)
+  │     ├── .hdr      → TwixHdr (nested header tree with tab-completion)
+  │     ├── .image    → RawData (image acquisitions)
+  │     ├── .noise    → RawData (noise adjustments)
+  │     ├── .refscan  → RawData (GRAPPA reference lines)
+  │     ├── ...       → RawData (other scan types)
+  │     └── .syncdata → Vector{Vector{UInt8}} (raw MDH_SYNCDATA payloads,
+  │                                             only if present in file)
   │
   └── Vector{TwixObj}   (for multi-raid VD/VE/XA files)
 ```
@@ -94,6 +96,7 @@ read_twix("file.dat")
 - [Installation](guide/installation.md) — Prerequisites and install methods
 - [Header Access](guide/headers.md) — Navigating header trees with tab-completion
 - [Data Access](guide/data_access.md) — Reading, slicing, and processing scan data
+- [SYNCDATA Payloads](guide/syncdata.md) — Accessing PMU / physio / custom binary blobs
 - [API Reference](guide/api.md) — Complete exported function listing
 
 ## Developer Guide

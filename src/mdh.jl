@@ -34,7 +34,14 @@ struct EOFError <: Exception end
     loop_mdh_read(fid, version, Nscans, scan, measLength; verbose=true)
 
 Read all MDHs (measurement data headers) from the twix file.
-Returns (mdh_blob, filePos, isEOF).
+Returns (mdh_blob, filePos, isEOF, syncdata).
+
+`syncdata` is a `Vector{Vector{UInt8}}` containing the raw payload bytes of
+every MDH_SYNCDATA packet encountered (i.e. the packet contents *after* the
+MDH header). Siemens pulse sequences may embed arbitrary binary blobs in
+SYNCDATA packets (custom gradient shapes, trajectories, etc.); the raw bytes
+are returned so downstream code can locate and parse them by whatever tag or
+layout the specific sequence uses.
 """
 function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
                        measLength::UInt64;
@@ -56,6 +63,9 @@ function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
     mdh_blob = Matrix{UInt8}(undef, byteMDH, allocSize)
     szBlob = allocSize
     filePos = Vector{Int64}(undef, allocSize)
+
+    # Collected SYNCDATA payloads (raw bytes, one entry per SYNCDATA packet).
+    syncdata = Vector{Vector{UInt8}}()
 
     seek(fid, cPos)
 
@@ -110,6 +120,23 @@ function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
         if bitMask & BYTE_BIT_5 != 0  # MDH_SYNCDATA
             data_u8[4] = UInt8(get_bit(data_u8[4], 0))
             ulDMALength = Int(reinterpret(UInt32, data_u8[1:4])[1])
+
+            # Capture the SYNCDATA payload (everything after the MDH header).
+            # We use a saved-and-restored file position so we don't disturb the
+            # loop's skip-based advancement (which relies on the reader being
+            # positioned exactly `byteMDH` bytes past the packet start).
+            payload_len = ulDMALength - byteMDH
+            if payload_len > 0
+                save_pos = position(fid)
+                payload = Vector{UInt8}(undef, payload_len)
+                nread = readbytes!(fid, payload, payload_len)
+                if nread < payload_len
+                    resize!(payload, nread)
+                end
+                push!(syncdata, payload)
+                seek(fid, save_pos)
+            end
+
             cPos += ulDMALength
             continue
         end
@@ -168,7 +195,7 @@ function loop_mdh_read(fid::IO, version::Symbol, Nscans::Int, scan::Int,
         finish!(p)
     end
 
-    return mdh_blob, filePos, isEOF
+    return mdh_blob, filePos, isEOF, syncdata
 end
 
 # ─── MDH evaluation ──────────────────────────────────────────────────
@@ -277,10 +304,14 @@ end
 """
     MDH_flags(t::TwixObj)
 
-Return list of populated scan type names (excluding "hdr").
+Return list of populated scan type names. Only entries whose value is a
+`RawData` object are considered scan types; auxiliary entries such as `"hdr"`
+(a `TwixHdr`) or `"syncdata"` (raw MDH_SYNCDATA payloads, a
+`Vector{Vector{UInt8}}`) are excluded.
 """
 function MDH_flags(t::TwixObj)
-    return sort(filter(k -> k != "hdr", collect(keys(t._data))))
+    d = getfield(t, :_data)
+    return sort([k for (k, v) in d if v isa RawData])
 end
 
 # ─── Scan assignment ──────────────────────────────────────────────────

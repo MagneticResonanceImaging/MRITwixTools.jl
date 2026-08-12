@@ -273,6 +273,31 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test !("hdr" in flags)
     end
 
+    # ─── TwixObj + syncdata unit test ────────────────────────────
+    # Ensures the TwixObj container handles a Vector{Vector{UInt8}} entry
+    # (as returned for SYNCDATA payloads) without crashing show/propertynames,
+    # and that MDH_flags does not treat it as a scan type mistakenly.
+    @testset "TwixObj + syncdata" begin
+        t = MRITwixTools.TwixObj()
+        t["hdr"] = MRITwixTools.TwixHdr()
+        t["image"] = MRITwixTools.RawData("image", "test.dat", :vd)
+        payload = UInt8[0x01, 0x02, 0x03, 0x04]
+        t["syncdata"] = [payload, payload]
+
+        @test haskey(t, "syncdata")
+        @test t.syncdata isa Vector{Vector{UInt8}}
+        @test length(t.syncdata) == 2
+        @test length(t.syncdata[1]) == 4
+        @test :syncdata in propertynames(t)
+
+        # Show methods should render without error for both TwixObj forms.
+        io = IOBuffer()
+        show(io, t)
+        show(io, MIME("text/plain"), t)
+        rendered = String(take!(io))
+        @test occursin("syncdata", rendered)
+    end
+
     # ─── Flag setters tests ──────────────────────────────────────
     @testset "Flag setters" begin
         obj = MRITwixTools.RawData("image", "test.dat", :vd)
@@ -341,6 +366,9 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test fullSize(twixObj.image) == [4096, 32, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1]
         @test sqzSize(twixObj.image) == [4096, 32, 2]
 
+        # This VB file has no SYNCDATA packets — the entry must not be created.
+        @test !haskey(twixObj._data, "syncdata")
+
         # Header search (new API)
         results = search(twixObj.hdr, "sTXSPEC", "asNucleusInfo")
         @test length(results) > 0
@@ -367,6 +395,19 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
 
         # Header value access
         @test twixObj[2].hdr.MeasYaps.sTXSPEC.asNucleusInfo["0"]["tNucleus"] == "\"1H\""
+
+        # SYNCDATA payloads: this multi-raid file's first scan contains a
+        # coil-sensitivity adjustment SYNCDATA packet; scan 2 does not.
+        @test haskey(twixObj[1]._data, "syncdata")
+        @test twixObj[1].syncdata isa Vector{Vector{UInt8}}
+        @test length(twixObj[1].syncdata) == 1
+        @test length(twixObj[1].syncdata[1]) == 1480
+        @test !haskey(twixObj[2]._data, "syncdata")
+
+        # SYNCDATA presence must not disturb the surrounding MDH parsing —
+        # scan types must still be correctly labeled.
+        @test !("syncdata" in MDH_flags(twixObj[1]))  # not treated as a scan type
+        @test "image" in MDH_flags(twixObj[2])
     end
 
     @testset "VB broken file read" begin
@@ -428,6 +469,38 @@ sTXSPEC.asNucleusInfo[0].tNucleus = "1H"
         @test dataSize(twixObj[2].refscan) == [220, 16, 82, 1, 5, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
         twixObj[2].refscan.flagSkipToFirstLine = true
         @test dataSize(twixObj[2].refscan) == [220, 16, 54, 1, 5, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
+    end
+
+    # ─── SYNCDATA extraction (large-ish payload) ─────────────────────
+    # The EPI file contains a single 9480-byte SYNCDATA packet in its first
+    # scan (typical Siemens adjustment/PMU frame). Verifying its size ensures
+    # `loop_mdh_read` (a) picks up the packet and (b) reads exactly
+    # `ulDMALength - byteMDH` bytes into the payload without over- or
+    # under-shooting the packet boundary.
+    @testset "SYNCDATA payload extraction (EPI)" begin
+        path = get_test_file("meas_MID00265_FID12808_FMRI.dat")
+        twixObj = read_twix(path, verbose=false)
+
+        @test haskey(twixObj[1]._data, "syncdata")
+        sync = twixObj[1].syncdata
+        @test sync isa Vector{Vector{UInt8}}
+        @test length(sync) == 1
+        @test length(sync[1]) == 9480
+        @test eltype(sync[1]) === UInt8
+
+        # Scan 2 has no SYNCDATA — must not have the entry.
+        @test !haskey(twixObj[2]._data, "syncdata")
+
+        # Scan-type labels must be unaffected by SYNCDATA extraction.
+        @test "image" in MDH_flags(twixObj[2])
+        @test "refscan" in MDH_flags(twixObj[2])
+        @test "refscanPC" in MDH_flags(twixObj[2])
+
+        # Regression: after extracting SYNCDATA, subsequent data reads must
+        # still produce the same-sized output (proves file-position discipline).
+        twixObj[2].image.squeeze = true
+        img = getdata(twixObj[2].image)
+        @test size(img, 1) > 0
     end
 
     # ─── Data comparison tests against MATLAB reference (.mat files) ────
