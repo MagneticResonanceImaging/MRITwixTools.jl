@@ -233,11 +233,12 @@ s = read_spiral_gradshape("meas.dat")
 
 ## API
 
-```@docs
-syncdata_strings
-payload_offset
-summarize_syncdata
-```
+The full docstrings for the SYNCDATA helpers live in the
+[API Reference](api.md#SYNCDATA-Introspection):
+
+- [`syncdata_strings`](@ref)
+- [`payload_offset`](@ref)
+- [`summarize_syncdata`](@ref)
 
 ## Implementation Notes
 
