@@ -34,6 +34,18 @@ Direct field access (e.g., `obj.removeOS = true`) is preferred for new code.
 | `set_flagSkipToFirstLine!(obj, val)` | `obj.skipToFirstLine = val` |
 | `set_flagDisableReflect!(obj, val)` | `obj.disableReflect = val` |
 
+## SYNCDATA Introspection
+
+These utilities help discover the ASCII tags embedded in an MDH_SYNCDATA
+packet and locate the start of the binary payload that follows a tag.
+See the [SYNCDATA Payloads](syncdata.md) guide for context.
+
+```@docs
+syncdata_strings
+payload_offset
+summarize_syncdata
+```
+
 ## Header Navigation
 
 ```@docs

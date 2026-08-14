@@ -14,6 +14,7 @@ include("types.jl")
 include("read_twix_hdr.jl")
 include("twix_map_obj.jl")
 include("mdh.jl")
+include("syncdata.jl")
 
 
 # Public API
@@ -23,6 +24,9 @@ export MDH_flags
 export set_flagRemoveOS!, set_flagRampSampRegrid!, set_flagDoAverage!
 export set_flagAverageReps!, set_flagAverageSets!, set_flagIgnoreSeg!
 export set_flagSkipToFirstLine!, set_flagDisableReflect!
+
+# SYNCDATA introspection helpers
+export syncdata_strings, payload_offset, summarize_syncdata
 
 # New API exports
 export NestedDict, search, leaves, setpath!

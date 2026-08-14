@@ -41,6 +41,100 @@ TwixObj
 For multi-raid files, `read_twix` returns a `Vector{TwixObj}` and each
 element may independently carry its own `syncdata` (or not).
 
+## Discovering the ASCII Tags in a Packet
+
+If you don't know the tag string that identifies a packet, the exported
+helper [`syncdata_strings`](@ref) walks a packet and returns every run of
+consecutive printable-ASCII bytes (`0x20..0x7E`, whitespace/control bytes
+excluded), together with their byte offsets:
+
+```julia
+using MRITwixTools
+twx = read_twix("meas.dat")
+for s in syncdata_strings(twx.syncdata[1]; min_length = 16)
+    println(@sprintf("  @%6d  len=%-4d  %s", s.offset, s.length, s.str))
+end
+```
+
+A typical output looks like:
+
+```
+  @     8  len=8     PMUData_v1
+  @    24  len=4     SEQD
+  ...
+```
+
+For a quick tour of a scan, use [`summarize_syncdata`](@ref):
+
+```julia
+summarize_syncdata(twx.syncdata; min_length = 16)
+```
+
+The `min_length` keyword controls how many consecutive printable bytes
+qualify as an "ASCII run". Two kinds of noise typically show up if it is
+set too low:
+
+- Some Siemens SEQData framing packets carry short trailing fragments of
+  the ASCII XProtocol header (e.g. `"<Comment>"`, `"<Dependency>"`,
+  `<Context> "NORMAL"`). Because the XProtocol string spans packet
+  boundaries, only ~10–20 characters of it survive as a run in any single
+  packet — a `min_length` of 20–32 hides all of them.
+- The bit patterns of small-magnitude `Float32` numbers cluster around
+  `0x3E..0x3F` (bytes `>` and `?`), which fall in the printable-ASCII
+  range. Sequences of small floats therefore occasionally produce short
+  "ASCII runs" that are pure noise (typically ≤ ~12 chars).
+
+A versioned tag like `"SpiralGradShape_v1"` is usually 15–30 characters
+long, so choosing `min_length` at ~16 gives a good signal-to-noise ratio.
+If your tag is shorter, drop `min_length` and inspect the output — real
+tags tend to appear in exactly one packet at a fixed, small offset, while
+noise fluctuates in offset from one packet to the next.
+
+SYNCDATA streams are usually dominated by two kinds of noisy packets:
+
+1. **Silent framing packets** (PMU telemetry, timing frames, …) with no
+   printable-ASCII content at all.
+2. **XProtocol-fragment packets** whose trailing bytes carry a slice of
+   the ASCII XProtocol header — producing ASCII runs at offsets *near
+   the end* of the packet.
+
+`summarize_syncdata` hides both categories by default and reports them
+in a single aggregate line at the end, keeping the output focused on
+packets that plausibly carry a sequence tag:
+
+- Packets with no qualifying ASCII run are omitted (case 1).
+- Packets whose runs *all* start past `max_start_frac × length(pkt)`
+  (default `0.5`) are omitted as "late-only" (case 2). Sequence tags
+  that identify a payload are almost always near the *start* of their
+  packet, so the heuristic reliably keeps them visible.
+
+To disable one of these filters:
+
+- `show_empty = true` — list every packet, including silent ones.
+- `max_start_frac = 1.0` — do not treat late-only packets as noise.
+
+Once you know the tag, use [`payload_offset`](@ref) to jump straight to
+the first byte that is *not* printable ASCII after that tag — i.e. the
+plausible start of the binary payload:
+
+```julia
+p = payload_offset(pkt, "PMUData_v1")   # 1-based index into `pkt`, or `nothing`
+```
+
+The helper skips *all* trailing printable bytes past the tag, so if the
+tag is immediately followed by another ASCII field name it will keep
+sliding. Sequence-specific parsers usually still need to skip a few extra
+NUL / framing bytes past this offset until the parsed fields look
+plausible — see the pattern below.
+
+!!! note "When it can go wrong"
+    Auto-splitting a packet by "where do the printable characters end?"
+    works whenever the binary payload is dominated by non-printable bytes
+    (small integers, floats near zero, etc.). It is not reliable if the
+    payload itself contains a long printable-ASCII string — that string
+    would be reported as its own ASCII run. Manual inspection with
+    `summarize_syncdata` remains the safest first step for a new format.
+
 ## Parsing a Sequence-Specific Payload
 
 Most custom payloads are introduced by an ASCII tag (a version-stamped
@@ -135,6 +229,14 @@ end
 s = read_spiral_gradshape("meas.dat")
 @show s.dMaxAmpl s.lGradLength s.lROLength
 @show maximum(abs, s.X)  maximum(abs, s.Z)
+```
+
+## API
+
+```@docs
+syncdata_strings
+payload_offset
+summarize_syncdata
 ```
 
 ## Implementation Notes
