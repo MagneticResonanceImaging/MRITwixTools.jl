@@ -17,10 +17,11 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "User Guide" => [
-            "Installation"  => "guide/installation.md",
-            "Header Access" => "guide/headers.md",
-            "Data Access"   => "guide/data_access.md",
-            "API Reference" => "guide/api.md",
+            "Installation"        => "guide/installation.md",
+            "Header Access"       => "guide/headers.md",
+            "Data Access"         => "guide/data_access.md",
+            "SYNCDATA Payloads"   => "guide/syncdata.md",
+            "API Reference"       => "guide/api.md",
         ],
         "Developer Guide" => [
             "Contributing"            => "devguide/contributing.md",

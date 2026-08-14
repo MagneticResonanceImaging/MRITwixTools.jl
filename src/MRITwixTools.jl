@@ -14,6 +14,7 @@ include("types.jl")
 include("read_twix_hdr.jl")
 include("twix_map_obj.jl")
 include("mdh.jl")
+include("syncdata.jl")
 
 
 # Public API
@@ -23,6 +24,9 @@ export MDH_flags
 export set_flagRemoveOS!, set_flagRampSampRegrid!, set_flagDoAverage!
 export set_flagAverageReps!, set_flagAverageSets!, set_flagIgnoreSeg!
 export set_flagSkipToFirstLine!, set_flagDisableReflect!
+
+# SYNCDATA introspection helpers
+export syncdata_strings, payload_offset, summarize_syncdata
 
 # New API exports
 export NestedDict, search, leaves, setpath!
@@ -125,22 +129,32 @@ function read_twix(filename::String;
             cPos += hdr_len
             seek(fid, cPos)
 
-            mdh_blob, filePos, isEOF = loop_mdh_read(fid, version, NScans, s - 1, measLength[s]; verbose)
+            mdh_blob, filePos, isEOF, syncdata = loop_mdh_read(fid, version, NScans, s - 1, measLength[s]; verbose)
 
             mdh, mask = evalMDH(mdh_blob, version)
 
             # --- Assign MDHs to respective scan types ---
             _assign_scans!(currTwixObj, mdh, mask, filePos)
 
+            # Expose raw SYNCDATA payloads to the user. Siemens sequences may
+            # embed arbitrary binary blobs here (e.g. custom gradient shapes,
+            # trajectories); we return the raw bytes so any downstream code
+            # can locate and parse them by sequence-specific tags/layouts.
+            if !isempty(syncdata)
+                currTwixObj["syncdata"] = syncdata
+            end
+
             if isEOF
                 for key in collect(keys(currTwixObj._data))
-                    key == "hdr" && continue
-                    tryAndFixLastMdh!(currTwixObj[key])
+                    v = currTwixObj[key]
+                    v isa RawData || continue
+                    tryAndFixLastMdh!(v)
                 end
             else
                 for key in collect(keys(currTwixObj._data))
-                    key == "hdr" && continue
-                    compute_dims!(currTwixObj[key])
+                    v = currTwixObj[key]
+                    v isa RawData || continue
+                    compute_dims!(v)
                 end
             end
         end

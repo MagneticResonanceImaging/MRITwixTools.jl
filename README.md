@@ -103,6 +103,25 @@ search(hdr, "Nucleus", "1H", search_values=true)
 leaves(hdr)
 ```
 
+## SYNCDATA Payloads (PMU / physio / custom sequence data)
+
+If a scan contains MDH_SYNCDATA packets (e.g. PMU/physio traces or
+sequence-specific binary blobs written by custom pulse sequences), their raw
+payload bytes are exposed on the `TwixObj`:
+
+```julia
+twx = read_twix("meas.dat")
+if haskey(getfield(twx, :_data), "syncdata")
+    for pkt in twx.syncdata            # Vector{Vector{UInt8}}
+        # search for a sequence-specific tag and parse whatever binary layout follows
+    end
+end
+```
+
+MRITwixTools does not attempt to interpret these payloads because their
+layout is entirely sequence-specific. See the
+[SYNCDATA guide](https://MagneticResonanceImaging.github.io/MRITwixTools.jl/stable/guide/syncdata/) for a worked example.
+
 ## Comparison with Other Twix Readers
 
 Several tools exist for reading Siemens twix (`.dat`) files:
